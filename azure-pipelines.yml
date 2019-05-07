@@ -1,0 +1,34 @@
+# Maven
+# Build your Java project and run tests with Apache Maven.
+# Add steps that analyze code, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/java
+
+jobs:
+- job: Build
+  timeoutInMinutes: 0
+
+  variables:
+    - group: che-theia
+    - name: organization
+      value: eclipse
+    - name: prefix
+      value: che
+    - name: tag
+      value: next
+
+  pool:
+    vmImage: 'Ubuntu-16.04'
+
+  steps:
+  - script: |
+      yarn
+
+  - script: |
+      cd dockerfiles/theia-dev
+      ./build.sh --build-arg:GITHUB_TOKEN=$(github_token) --organization:$(organization) --tag:$(tag) --prefix:$(prefix)
+    displayName: Building theia-dev
+ 
+  - script: |
+      cd dockerfiles/theia
+      ./build.sh --build-args:GITHUB_TOKEN=$(github_token),THEIA_VERSION=master --tag:$(tag) --prefix:$(prefix) --branch:master --git-ref:refs\\/heads\\/master --organization:$(organization)
+    displayName: Building Theia
