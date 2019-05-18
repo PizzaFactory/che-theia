@@ -28,7 +28,7 @@ jobs:
 
   - script: |
       cd dockerfiles/theia-dev
-      ./build.sh --build-args:$(github_token) --organization:camino.azurecr.io --tag:$(tag)
+      ./build.sh --build-args:$(github_token) --organization:camino.azurecr.io --tag:$(tag) --skip-tests
     displayName: Building theia-dev
  
   - script: |
