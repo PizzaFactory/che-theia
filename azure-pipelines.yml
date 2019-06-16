@@ -39,7 +39,6 @@ jobs:
       command: login
       dockerRegistryEndpoint: camino.azurecr.io
       containerRegistryType: Container Registry
-    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
 
   - script: |
       docker tag $(organization)/che-theia-dev:$(tag) camino.azurecr.io/$(organization)/che-theia-dev:$(tag)
@@ -48,3 +47,11 @@ jobs:
       docker push camino.azurecr.io/$(organization)/che-theia:$(tag)
     condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
     displayName: Pushing
+
+  - script: |
+      docker tag $(organization)/che-theia-dev:$(tag) camino.azurecr.io/$(organization)/che-theia-dev:$(tag)-pr$(System.PullRequest.PullRequestNumber)
+      docker tag $(organization)/che-theia:$(tag) camino.azurecr.io/$(organization)/che-theia:$(tag)-pr$(System.PullRequest.PullRequestNumber)
+      docker push camino.azurecr.io/$(organization)/che-theia-dev:$(tag)-pr$(System.PullRequest.PullRequestNumber)
+      docker push camino.azurecr.io/$(organization)/che-theia:$(tag)-pr$(System.PullRequest.PullRequestNumber)
+    condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'))
+    displayName: Pushing (staging)
