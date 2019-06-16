@@ -9,10 +9,17 @@
 echo "Starting Theia..."
 rm -rf /root/logs/*
 HOME=/home/theia /entrypoint.sh > /root/logs/theia.log 2>/root/logs/theia-error.log&
-sleep 10s
+
 echo "Cleaning videos folder..."
 # Cleanup previous videos
-rm -rf /root/cypress/videos
+rm -rf /root/cypress/videos/*
+
+# Wait TCP local_address:port 0.0.0.0:3001 (3001 is 0x0BB9 in hex.)
+# It'll be opened by Theia.
+until `grep -iFq ' 00000000:0BB9 ' /proc/net/tcp`; do
+    echo "Waiting for booting up Theia..."
+    sleep 10s
+done
 
 # Run tests
 echo "Run the tests"
