@@ -26,7 +26,4 @@ if ! grep -Fq "${USER_ID}" /etc/passwd; then
     sed "s/\${GROUP_ID}/${GROUP_ID}/g" > /etc/group
 fi
 
-# Avlid build errors caused by Yarn's parallel build
-node-gyp install
-
 exec "$@"
