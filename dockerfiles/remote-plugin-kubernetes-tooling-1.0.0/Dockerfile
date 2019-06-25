@@ -31,4 +31,6 @@ COPY --from=endpoint /etc/passwd /etc/passwd
 COPY --from=endpoint /etc/group /etc/group
 COPY --from=endpoint /entrypoint.sh /entrypoint.sh
 
+RUN chmod g+w /home/theia
+
 ENTRYPOINT ["/entrypoint.sh"]
