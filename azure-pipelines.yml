@@ -26,7 +26,6 @@ jobs:
     displayName: Building theia-dev
  
   - script: |
-      export
       cd dockerfiles/theia
-      ./build.sh --build-args:GITHUB_TOKEN=$(github_token).THEIA_GITHUB_REPO=pizzafactory/cheia --tag:$(tag) --prefix:$(prefix) --branch:pr-use-node-gyp-5.x --git-ref:refs\\/heads\\/master --organization:$(organization)
+      ./build.sh --build-args:GITHUB_TOKEN=$(github_token),THEIA_GITHUB_REPO=pizzafactory/theia --tag:$(tag) --prefix:$(prefix) --branch:pr-use-node-gyp-5.x --git-ref:refs\\/heads\\/master --organization:$(organization)
     displayName: Building Theia
