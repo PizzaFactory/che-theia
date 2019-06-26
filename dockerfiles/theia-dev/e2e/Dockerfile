@@ -11,6 +11,8 @@ FROM ${BUILD_ORGANIZATION}/${BUILD_PREFIX}-theia-dev:${BUILD_TAG}
 # define in env variable GITHUB_TOKEN
 ARG GITHUB_TOKEN
 
+ENV THEIA_ELECTRON_SKIP_REPLACE_FFMPEG=1
+
 # Just try to build the latest theia with current image
 RUN git clone -b 'master' --single-branch --depth 1 https://github.com/theia-ide/theia theia
 RUN cd theia && yarn
