@@ -14,8 +14,8 @@
 
   [![Build Status](https://ci.codenvycorp.com/buildStatus/icon?job=che-theia-master-ci)](https://ci.codenvycorp.com/job/che-theia-master-ci)
   [![mattermost](https://img.shields.io/badge/chat-on%20mattermost-blue.svg)](https://mattermost.eclipse.org/eclipse/channels/eclipse-che-ide2-team)
-  [![Open questions](https://img.shields.io/badge/Open-questions-blue.svg?style=flat-curved)](https://github.com/eclipse/che-theia/labels/kind%2Fquestion)
-  [![Open bugs](https://img.shields.io/badge/Open-bugs-red.svg?style=flat-curved)](https://github.com/eclipse/che-theia/labels/kind%2Fbug)
+  [![Open questions](https://img.shields.io/badge/Open-questions-blue.svg?style=flat-curved)](https://github.com/eclipse/che/issues?utf8=%E2%9C%93&q=label%3Aarea%2Ftheia+label%3Akind%2Fquestion+)
+  [![Open bugs](https://img.shields.io/badge/Open-bugs-red.svg?style=flat-curved)](https://github.com/eclipse/che/issues?utf8=%E2%9C%93&q=label%3Aarea%2Ftheia+label%3Akind%2Fbug+)
 
 </div>
 
@@ -56,20 +56,13 @@ In Che-Theia, you’ll find the following capabilities:
 | Che APIs              | Extends the IDE APIs, to allow interacting with the Che specific components (workspaces, preferences, etc.). |
 
 
-## Join the community
-
-The Eclipse Che community is globally reachable through public chat rooms, mailing list and weekly calls.
-See https://www.eclipse.org/che/docs/che-7/introduction-to-eclipse-che.html#joining-the-community
-
-Che-Theia is mainly maintained by the Che IDE2 team a.k.a Selene.
-You are very welcome to join our community chat [here](https://mattermost.eclipse.org/eclipse/channels/eclipse-che-ide2-team) to discuss about improvements, bug fixes and anything else.
 
 ## Project structure
 
-- [che-plugins](./che-plugins) contains Eclipse Che plugins definition
-- [dockerfiles](./dockerfiles) contains Dockerfiles
-- [extensions](./extensions) contains Theia Extensions
-- [plugins](./plugins) contains Theia Plugins
+- [che-plugins](./che-plugins) contains the Che7 plugin definition,
+- [dockerfiles](./dockerfiles) contains Dockerfiles for plugin sidecars, theia-editor and theia builder,
+- [extensions](./extensions) contains Che-Theia specific extensions,
+- [plugins](./plugins) contains Che-Theia plugins.
 
 # Contributing
 ## How to build
@@ -109,3 +102,15 @@ That script will clone Theia from master branch and all Che related extensions f
 ## License
 
 - [Eclipse Public License 2.0](LICENSE)
+
+## Join the community
+
+The Eclipse Che community is globally reachable through public chat rooms, mailing list and weekly calls.
+See https://www.eclipse.org/che/docs/che-7/index.html#joining-the-community
+
+Che-Theia is mainly maintained by the Che IDE2 team a.k.a Selene.
+You are very welcome to join our community chat [here](https://mattermost.eclipse.org/eclipse/channels/eclipse-che-ide2-team) to discuss about improvements, bug fixes and anything else.
+
+## Report issues
+
+Issues are tracked on the main Eclipse Che Repository: https://github.com/eclipse/che/issues
