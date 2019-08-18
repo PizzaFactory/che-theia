@@ -31,10 +31,22 @@ jobs:
       ./build.sh --build-arg:GITHUB_TOKEN=$(github_token) --organization:$(organization) --tag:$(tag) --prefix:$(prefix)
     displayName: Building theia-dev
 
+#  - script: |
+#      cd dockerfiles/theia
+#      ./build.sh --build-args:GITHUB_TOKEN=$(github_token),THEIA_VERSION=master --tag:$(tag) --prefix:$(prefix) --branch:master --git-ref:refs\\/heads\\/master --organization:$(organization)
+#    displayName: Building Theia
+
   - script: |
-      cd dockerfiles/theia
+      cd dockerfiles/theia-endpoint-runtime
       ./build.sh --build-args:GITHUB_TOKEN=$(github_token),THEIA_VERSION=master --tag:$(tag) --prefix:$(prefix) --branch:master --git-ref:refs\\/heads\\/master --organization:$(organization)
-    displayName: Building Theia
+    displayName: Building Theia-endpoint-runtime
+
+  - script: |
+      for i in $(find dockerfiles -maxdepth 1 -type d -name 'remote-*'); do
+        (cd $i;
+        ./build.sh --build-args:GITHUB_TOKEN=$(github_token),THEIA_VERSION=master --tag:$(tag) --prefix:$(prefix) --branch:master --git-ref:refs\\/heads\\/master --organization:$(organization) )
+      done
+    displayName: Building remote-* containers
 
   - task: Docker@1
     displayName: Container registry login
@@ -44,17 +56,17 @@ jobs:
       containerRegistryType: Container Registry
 
   - script: |
-      docker tag $(organization)/che-theia-dev:$(tag) camino.azurecr.io/$(organization)/che-theia-dev:$(tag)
-      docker tag $(organization)/che-theia:$(tag) camino.azurecr.io/$(organization)/che-theia:$(tag)
-      docker push camino.azurecr.io/$(organization)/che-theia-dev:$(tag)
-      docker push camino.azurecr.io/$(organization)/che-theia:$(tag)
+      for i in $(cd dockerfiles; find * -type d -maxdepth 0); do
+        docker tag $(organization)/$i:$(tag) camino.azurecr.io/$(organization)/$i:$(tag)
+        docker push camino.azurecr.io/$(organization)/$i:$(tag)
+      done
     condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
     displayName: Pushing
 
   - script: |
-      docker tag $(organization)/che-theia-dev:$(tag) camino.azurecr.io/$(organization)/che-theia-dev:$(tag)-pr$(System.PullRequest.PullRequestNumber)
-      docker tag $(organization)/che-theia:$(tag) camino.azurecr.io/$(organization)/che-theia:$(tag)-pr$(System.PullRequest.PullRequestNumber)
-      docker push camino.azurecr.io/$(organization)/che-theia-dev:$(tag)-pr$(System.PullRequest.PullRequestNumber)
-      docker push camino.azurecr.io/$(organization)/che-theia:$(tag)-pr$(System.PullRequest.PullRequestNumber)
+      for i in $(cd dockerfiles; find * -type d -maxdepth 0); do
+        docker tag $(organization)/$i:$(tag) camino.azurecr.io/$(organization)/$i:$(tag)-pr$(System.PullRequest.PullRequestNumber)
+        docker push camino.azurecr.io/$(organization)/$i:$(tag)-pr$(System.PullRequest.PullRequestNumber)
+      done
     condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'))
     displayName: Pushing (staging)
