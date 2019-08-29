@@ -141,6 +141,15 @@ export class RemoteTerminalWidget extends TerminalWidgetImpl {
 
         const sendListener = data => socket.send(data);
 
+        let keepAliveId;
+        const keepAliveHandler = () => {
+            if (this.isOpen) {
+                socket.send('');
+            }
+            keepAliveId = setTimeout(keepAliveHandler, 10000);
+        };
+        keepAliveHandler();
+
         socket.onopen = () => {
             this.term.reset();
             if (this.waitForRemoteConnection) {
@@ -160,11 +169,17 @@ export class RemoteTerminalWidget extends TerminalWidgetImpl {
         };
 
         socket.onerror = err => {
+            if (keepAliveId) {
+                clearTimeout(keepAliveId);
+            }
             this.term.off('data', sendListener);
             return Promise.resolve();
         };
 
         socket.onclose = code => {
+            if (keepAliveId) {
+                clearTimeout(keepAliveId);
+            }
             this.term.off('data', sendListener);
             return Promise.resolve();
         };
