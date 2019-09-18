@@ -1,5 +1,5 @@
 /********************************************************************************
- * Copyright (C) 2019 Red Hat, Inc. and others.
+ * Copyright (C) 2018-2019 Red Hat, Inc. and others.
  *
  * This program and the accompanying materials are made available under the
  * terms of the Eclipse Public License v. 2.0 which is available at
@@ -14,26 +14,18 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 
-import { injectable } from 'inversify';
-import { AbstractViewContribution } from '@theia/core/lib/browser/shell/view-contribution';
-import { ChePluginWidget } from './che-plugin-widget';
+import { injectable, inject } from 'inversify';
+import { BackendApplicationContribution } from '@theia/core/lib/node/backend-application';
+import { GitConfigurationController } from './git-configuration-controller';
 
 @injectable()
-export class ChePluginViewContribution extends AbstractViewContribution<ChePluginWidget> {
+export class GitConfigurationListenerContribution implements BackendApplicationContribution {
 
-    public static PLUGINS_WIDGET_ID = 'che-plugins';
+    @inject(GitConfigurationController)
+    gitConfigurationListener: GitConfigurationController;
 
-    constructor() {
-        super({
-            widgetId: ChePluginViewContribution.PLUGINS_WIDGET_ID,
-            widgetName: 'Plugins',
-            defaultWidgetOptions: {
-                area: 'left',
-                rank: 400
-            },
-            toggleCommandId: 'chePluginsView:toggle',
-            toggleKeybinding: 'ctrlcmd+shift+j'
-        });
+    public onStart(): void {
+        this.gitConfigurationListener.watchGitConfigChanges();
+        this.gitConfigurationListener.watchUserPreferencesChanges();
     }
-
 }

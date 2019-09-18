@@ -16,10 +16,9 @@
 
 import { injectable, inject } from 'inversify';
 import { Menu } from '@phosphor/widgets';
-import { CommandRegistry } from '@phosphor/commands';
+import { CommandRegistry as PhosphorCommandRegistry } from '@phosphor/commands';
 import { Emitter, Event } from '@theia/core/lib/common';
 import { ChePluginManager } from './che-plugin-manager';
-
 import { ChePluginManagerCommands, ChePluginCommandContribution } from './che-plugin-command-contribution';
 
 @injectable()
@@ -38,7 +37,7 @@ export class ChePluginMenu {
     }
 
     show(x: number, y: number): void {
-        const commands = new CommandRegistry();
+        const commands = new PhosphorCommandRegistry();
         const menu = new Menu({
             commands
         });
@@ -55,7 +54,7 @@ export class ChePluginMenu {
     /**
      * Adds commands to the menu for running plugin.
      */
-    protected addCommands(commands: CommandRegistry, menu: Menu): void {
+    protected addCommands(commands: PhosphorCommandRegistry, menu: Menu): void {
 
         commands.addCommand(ChePluginManagerCommands.SHOW_AVAILABLE_PLUGINS.id, {
             label: ChePluginManagerCommands.SHOW_AVAILABLE_PLUGINS.label,
