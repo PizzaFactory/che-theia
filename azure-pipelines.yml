@@ -23,18 +23,19 @@ jobs:
     vmImage: 'Ubuntu-16.04'
 
   steps:
-  - script: yarn
-    displayName: Run yarn.
-
   - script: |
-      cd dockerfiles/theia-dev
       ./build.sh --build-arg:GITHUB_TOKEN=$(github_token) --organization:$(organization) --tag:$(tag) --prefix:$(prefix)
-    displayName: Building theia-dev
+    displayName: Build all.
 
-  - script: |
-      cd dockerfiles/theia
-      ./build.sh --build-args:GITHUB_TOKEN=$(github_token) --tag:$(tag) --prefix:$(prefix) --organization:$(organization)
-    displayName: Building Theia
+#  - script: |
+#      cd dockerfiles/theia-dev
+#      ./build.sh --build-arg:GITHUB_TOKEN=$(github_token) --organization:$(organization) --tag:$(tag) --prefix:$(prefix)
+#    displayName: Building theia-dev
+#
+#  - script: |
+#      cd dockerfiles/theia
+#      ./build.sh --build-args:GITHUB_TOKEN=$(github_token) --tag:$(tag) --prefix:$(prefix) --organization:$(organization)
+#    displayName: Building Theia
 
   - task: Docker@1
     displayName: Container registry login
