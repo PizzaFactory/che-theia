@@ -180,9 +180,9 @@ to pick-up automatically a free port`));
 
         // override window.createTerminal to be container aware
         // tslint:disable-next-line:no-any
-        new TerminalContainerAware().overrideTerminal((webSocketClient.rpc as any).locals[MAIN_RPC_CONTEXT.TERMINAL_EXT.id]);
+        new TerminalContainerAware().overrideTerminal((webSocketClient.rpc as any).locals.get(MAIN_RPC_CONTEXT.TERMINAL_EXT.id));
         // tslint:disable-next-line:no-any
-        new TerminalContainerAware().overrideTerminalCreationOptionForDebug((webSocketClient.rpc as any).locals[MAIN_RPC_CONTEXT.DEBUG_EXT.id]);
+        new TerminalContainerAware().overrideTerminalCreationOptionForDebug((webSocketClient.rpc as any).locals.get(MAIN_RPC_CONTEXT.DEBUG_EXT.id));
 
         return webSocketClient;
     }
@@ -211,7 +211,9 @@ to pick-up automatically a free port`));
                 if (jsonParsed.internal.method && jsonParsed.internal.method === 'stop') {
                     try {
                         // wait to stop plug-ins
-                        await client.pluginHostRPC.stopContext();
+                        // FIXME: we need to fix this
+                        // tslint:disable-next-line: no-any
+                        await (<any>client.pluginHostRPC).pluginManager.$stop();
 
                         // ok now we can dispose the emitter
                         client.disposeEmitter();
