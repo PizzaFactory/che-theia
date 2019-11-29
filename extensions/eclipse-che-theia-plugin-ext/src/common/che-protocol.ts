@@ -12,6 +12,7 @@ import { ProxyIdentifier, createProxyIdentifier } from '@theia/plugin-ext/lib/co
 import { che as cheApi } from '@eclipse-che/api';
 import * as che from '@eclipse-che/plugin';
 import { Event, JsonRpcServer } from '@theia/core';
+
 /**
  * Workspace plugin API
  */
@@ -45,6 +46,10 @@ export interface CheFactoryMain {
 export interface CheDevfile {
 }
 
+export interface CheGithub {
+    uploadPublicSshKey(publicKey: string): Promise<void>;
+}
+
 export interface CheDevfileMain {
     $createWorkspace(devfilePath: string): Promise<void>;
 }
@@ -58,6 +63,10 @@ export interface CheSshMain {
     $get(service: string, name: string): Promise<cheApi.ssh.SshPair>;
     $getAll(service: string): Promise<cheApi.ssh.SshPair[]>;
     $deleteKey(service: string, name: string): Promise<void>;
+}
+
+export interface CheGithubMain {
+    $uploadPublicSshKey(publicKey: string): Promise<void>;
 }
 
 /**
@@ -76,10 +85,8 @@ export interface CheVariablesMain {
 export interface CheTask {
     registerTaskRunner(type: string, runner: che.TaskRunner): Promise<che.Disposable>;
     fireTaskExited(event: che.TaskExitedEvent): Promise<void>;
-    $runTask(id: number, config: che.TaskConfiguration, ctx?: string): Promise<void>;
-    $onTaskExited(id: number): Promise<void>;
-    $killTask(id: number): Promise<void>;
-    $getTaskInfo(id: number): Promise<che.TaskInfo | undefined>;
+    $runTask(config: che.TaskConfiguration, ctx?: string): Promise<che.TaskInfo>;
+    $killTask(taskInfo: che.TaskInfo): Promise<void>;
 }
 
 export const CheTaskMain = Symbol('CheTaskMain');
@@ -87,6 +94,15 @@ export interface CheTaskMain {
     $registerTaskRunner(type: string): Promise<void>;
     $disposeTaskRunner(type: string): Promise<void>;
     $fireTaskExited(event: che.TaskExitedEvent): Promise<void>;
+    $addTaskSubschema(schema: che.TaskJSONSchema): Promise<void>;
+}
+
+export interface CheSideCarContentReader {
+    $read(uri: string, options?: { encoding?: string }): Promise<string | undefined>;
+}
+
+export interface CheSideCarContentReaderMain {
+    $registerContentReader(scheme: string): Promise<void>;
 }
 
 export interface Variable {
@@ -367,8 +383,17 @@ export const PLUGIN_RPC_CONTEXT = {
     CHE_SSH: <ProxyIdentifier<CheSsh>>createProxyIdentifier<CheSsh>('CheSsh'),
     CHE_SSH_MAIN: <ProxyIdentifier<CheSshMain>>createProxyIdentifier<CheSshMain>('CheSshMain'),
 
+    CHE_GITHUB: <ProxyIdentifier<CheGithub>>createProxyIdentifier<CheGithub>('CheGithub'),
+    CHE_GITHUB_MAIN: <ProxyIdentifier<CheGithubMain>>createProxyIdentifier<CheGithubMain>('CheGithubMain'),
+
     CHE_USER: <ProxyIdentifier<CheUser>>createProxyIdentifier<CheUser>('CheUser'),
     CHE_USER_MAIN: <ProxyIdentifier<CheUserMain>>createProxyIdentifier<CheUserMain>('CheUserMain'),
+
+    CHE_PRODUCT: <ProxyIdentifier<CheProduct>>createProxyIdentifier<CheProduct>('CheProduct'),
+    CHE_PRODUCT_MAIN: <ProxyIdentifier<CheProductMain>>createProxyIdentifier<CheProductMain>('CheProductMain'),
+
+    CHE_SIDERCAR_CONTENT_READER: <ProxyIdentifier<CheSideCarContentReader>>createProxyIdentifier<CheSideCarContentReader>('CheSideCarContentReader'),
+    CHE_SIDERCAR_CONTENT_READER_MAIN: <ProxyIdentifier<CheSideCarContentReaderMain>>createProxyIdentifier<CheSideCarContentReaderMain>('CheSideCarContentReaderMain'),
 };
 
 // Theia RPC protocol
@@ -416,94 +441,10 @@ export interface CheTaskService extends JsonRpcServer<CheTaskClient> {
 
 export const CheTaskClient = Symbol('CheTaskClient');
 export interface CheTaskClient {
-    runTask(id: number, taskConfig: che.TaskConfiguration, ctx?: string): Promise<void>;
-    killTask(id: number): Promise<void>;
-    getTaskInfo(id: number): Promise<che.TaskInfo | undefined>;
-    onTaskExited(id: number): Promise<void>;
-    addTaskInfoHandler(func: (id: number) => Promise<che.TaskInfo | undefined>): void;
-    addRunTaskHandler(func: (id: number, config: che.TaskConfiguration, ctx?: string) => Promise<void>): void;
-    addTaskExitedHandler(func: (id: number) => Promise<void>): void;
-    onKillEvent: Event<number>
-}
-
-export interface ChePluginRegistry {
-    name: string,
-    uri: string
-}
-
-export interface ChePlugin {
-    publisher: string;
-    name: string;
-    version: string;
-    installed: boolean;
-    versionList: {
-        [version: string]: ChePluginMetadata;
-    }
-}
-
-/**
- * Describes properties in plugin meta.yaml
- */
-export interface ChePluginMetadata {
-    publisher: string,
-    name: string,
-    version: string,
-    type: string,
-    displayName: string,
-    title: string,
-    description: string,
-    icon: string,
-    url: string,
-    repository: string,
-    firstPublicationDate: string,
-    category: string,
-    latestUpdateDate: string,
-
-    // Plugin KEY. Used to set in workpsace configuration
-    key: string,
-    builtIn: boolean
-}
-
-export const CHE_PLUGIN_SERVICE_PATH = '/che-plugin-service';
-
-export const ChePluginService = Symbol('ChePluginService');
-
-export interface ChePluginService {
-
-    /**
-     * Returns default plugin registry;
-     */
-    getDefaultRegistry(): Promise<ChePluginRegistry>;
-
-    /**
-     * Returns a list of available plugins on the plugin registry.
-     *
-     * @param registry ChePluginRegistry plugin registry
-     * @param filter filter
-     * @return list of available plugins
-     */
-    getPlugins(registry: ChePluginRegistry, filter: string): Promise<ChePluginMetadata[]>;
-
-    /**
-     * Returns list of plugins described in workspace configuration.
-     */
-    getWorkspacePlugins(): Promise<string[]>;
-
-    /**
-     * Adds a plugin to workspace configuration.
-     */
-    addPlugin(pluginKey: string): Promise<void>;
-
-    /**
-     * Removes a plugin from workspace configuration.
-     */
-    removePlugin(pluginKey: string): Promise<void>;
-
-    /**
-     * Changes the plugin version.
-     */
-    updatePlugin(oldPluginKey: string, newPluginKey: string): Promise<void>;
-
+    runTask(taskConfig: che.TaskConfiguration, ctx?: string): Promise<che.TaskInfo>;
+    killTask(taskInfo: che.TaskInfo): Promise<void>;
+    addRunTaskHandler(func: (config: che.TaskConfiguration, ctx?: string) => Promise<che.TaskInfo>): void;
+    onKillEvent: Event<che.TaskInfo>
 }
 
 export interface CheUser { }
@@ -513,4 +454,47 @@ export interface CheUserMain {
     $updateUserPreferences(preferences: Preferences): Promise<Preferences>;
     $replaceUserPreferences(preferences: Preferences): Promise<Preferences>;
     $deleteUserPreferences(list?: string[]): Promise<void>;
+}
+
+export interface CheProduct {
+}
+
+export interface CheProductMain {
+    $getProduct(): Promise<Product>;
+}
+
+export const CHE_PRODUCT_SERVICE_PATH = '/che-product-service';
+
+export const CheProductService = Symbol('CheProductService');
+
+export interface CheProductService {
+
+    /**
+     * Returns the product info.
+     */
+    getProduct(): Promise<Product>;
+
+}
+
+export interface Product {
+    // Product icon
+    icon: string;
+    // Product logo. Provides images for dark and white themes
+    logo: string | che.Logo;
+    // Product name
+    name: string;
+    // Welcome page
+    welcome: che.Welcome | undefined;
+    // Helpful links
+    links: che.LinkMap;
+}
+
+export type ContentReaderFunc = (uri: string, options?: { encoding?: string }) => Promise<string | undefined>;
+
+export const CheSideCarContentReaderRegistry = Symbol('CheSideCarContentReaderRegistry');
+
+export interface CheSideCarContentReaderRegistry {
+    register(scheme: string, f: ContentReaderFunc): void;
+    unregister(scheme: string): void;
+    get(scheme: string): ContentReaderFunc | undefined;
 }

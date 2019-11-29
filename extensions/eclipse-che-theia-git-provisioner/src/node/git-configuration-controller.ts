@@ -25,10 +25,10 @@ import { writeFile, pathExists, createFile, readFile } from 'fs-extra';
 import * as ini from 'ini';
 import * as nsfw from 'nsfw';
 import { Disposable } from '@theia/core';
+import { CheGitService, CheGitClient, GIT_USER_NAME, GIT_USER_EMAIL } from '../common/git-protocol';
 
-export const GIT_CONFIG_PATH = resolve(homedir(), '.gitconfig');
-export const GIT_USER_NAME = 'git.user.name';
-export const GIT_USER_EMAIL = 'git.user.email';
+export const GIT_USER_CONFIG_PATH = resolve(homedir(), '.gitconfig');
+export const GIT_GLOBAL_CONFIG_PATH = '/etc/gitconfig';
 
 export interface UserConfiguration {
     name: string | undefined;
@@ -36,7 +36,7 @@ export interface UserConfiguration {
 }
 
 @injectable()
-export class GitConfigurationController {
+export class GitConfigurationController implements CheGitService {
 
     @inject(CheTheiaUserPreferencesSynchronizer)
     protected preferencesService: CheTheiaUserPreferencesSynchronizer;
@@ -45,24 +45,26 @@ export class GitConfigurationController {
 
     protected gitConfigWatcher: nsfw.NSFW | undefined;
 
+    protected client: CheGitClient;
+
     public async watchGitConfigChanges(): Promise<void> {
         if (this.gitConfigWatcher) {
             return;
         }
 
-        const gitConfigExists = await pathExists(GIT_CONFIG_PATH);
+        const gitConfigExists = await pathExists(GIT_USER_CONFIG_PATH);
         if (!gitConfigExists) {
-            await createFile(GIT_CONFIG_PATH);
+            await createFile(GIT_USER_CONFIG_PATH);
         }
 
-        this.gitConfigWatcher = await nsfw(GIT_CONFIG_PATH, async (events: nsfw.ChangeEvent[]) => {
+        this.gitConfigWatcher = await nsfw(GIT_USER_CONFIG_PATH, async (events: nsfw.ChangeEvent[]) => {
             for (const event of events) {
                 if (event.action === nsfw.actions.MODIFIED) {
                     const userConfig = await this.getUserConfigurationFromGitConfig();
                     const preferences = await this.preferencesService.getPreferences();
 
-                    preferences[GIT_USER_NAME] = userConfig.name;
-                    preferences[GIT_USER_EMAIL] = userConfig.email;
+                    (preferences as { [index: string]: string })[GIT_USER_NAME] = userConfig.name!;
+                    (preferences as { [index: string]: string })[GIT_USER_EMAIL] = userConfig.email!;
 
                     await this.preferencesService.setPreferences(preferences);
                 }
@@ -71,22 +73,35 @@ export class GitConfigurationController {
         await this.gitConfigWatcher.start();
     }
 
-    protected async getUserConfigurationFromGitConfig(): Promise<UserConfiguration> {
-        const gitConfigExists = await pathExists(GIT_CONFIG_PATH);
-        if (!gitConfigExists) {
-            return {} as UserConfiguration;
+    async getUserConfigurationFromGitConfig(): Promise<UserConfiguration> {
+        let name: string | undefined;
+        let email: string | undefined;
+        const userConfig = await this.readUserConfigurationFromGitConfigFile(GIT_USER_CONFIG_PATH);
+        if (userConfig) {
+            name = userConfig.name;
+            email = userConfig.email;
         }
-
-        const gitConfigContent = await readFile(GIT_CONFIG_PATH, 'utf-8');
-        const gitConfig = ini.parse(gitConfigContent);
-
-        if (gitConfig.user === undefined) {
-            return {} as UserConfiguration;
+        if (name && email) {
+            return { name, email };
         }
-
-        const { name, email } = gitConfig.user;
-
+        const globalConfig = await this.readUserConfigurationFromGitConfigFile(GIT_GLOBAL_CONFIG_PATH);
+        if (globalConfig) {
+            name = name ? name : globalConfig.name;
+            email = email ? email : globalConfig.email;
+        }
         return { name, email };
+    }
+
+    protected async readUserConfigurationFromGitConfigFile(path: string): Promise<UserConfiguration | undefined> {
+        if (!await pathExists(path)) {
+            return;
+        }
+        const gitConfigContent = await readFile(path, 'utf-8');
+        const gitConfig = ini.parse(gitConfigContent);
+        if (gitConfig.user !== undefined) {
+            const { name, email } = gitConfig.user;
+            return { name, email };
+        }
     }
 
     public async watchUserPreferencesChanges(): Promise<void> {
@@ -97,10 +112,12 @@ export class GitConfigurationController {
         this.preferencesHandler = this.preferencesService.onUserPreferencesModify(preferences => {
             const config = this.getUserConfiguration(preferences);
             this.updateGlobalGitConfig(config);
+            this.client.firePreferencesChanged();
         });
     }
 
-    protected getUserConfiguration(preferences: object): UserConfiguration {
+    // tslint:disable-next-line: no-any
+    protected getUserConfiguration(preferences: any): UserConfiguration {
         return {
             name: preferences[GIT_USER_NAME],
             email: preferences[GIT_USER_EMAIL]
@@ -122,8 +139,16 @@ export class GitConfigurationController {
             gitConfig.user.email = config.email;
         }
 
-        await this.gitConfigWatcher.stop();
-        await writeFile(GIT_CONFIG_PATH, ini.stringify(gitConfig));
-        await this.gitConfigWatcher.start();
+        await this.gitConfigWatcher!.stop();
+        await writeFile(GIT_USER_CONFIG_PATH, ini.stringify(gitConfig));
+        await this.gitConfigWatcher!.start();
+    }
+
+    setClient(client: CheGitClient) {
+        this.client = client;
+    }
+
+    dispose() {
+        // nothing todo
     }
 }

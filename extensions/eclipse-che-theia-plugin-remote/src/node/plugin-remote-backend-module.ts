@@ -16,17 +16,27 @@ import { RemoteMetadataProcessor } from './remote-metadata-processor';
 import { HostedPluginMapping } from './plugin-remote-mapping';
 import { ConnectionContainerModule } from '@theia/core/lib/node/messaging/connection-container-module';
 import { PluginReaderExtension } from './plugin-reader-extension';
+import { HostedPluginProcess } from '@theia/plugin-ext/lib/hosted/node/hosted-plugin-process';
+import { LogHostedPluginProcess } from './hosted-plugin-process-log';
 
-const localModule = ConnectionContainerModule.create(({ bind }) => {
+const localModule = ConnectionContainerModule.create(({ bind, unbind, isBound, rebind }) => {
     bind(HostedPluginRemote).toSelf().inSingletonScope().onActivation((ctx: interfaces.Context, hostedPluginRemote: HostedPluginRemote) => {
-        const pluginReaderExtension = ctx.container.parent.get(PluginReaderExtension);
+        const pluginReaderExtension = ctx.container.parent!.get(PluginReaderExtension);
         pluginReaderExtension.setRemotePluginConnection(hostedPluginRemote);
         return hostedPluginRemote;
     });
     bind(ServerPluginRunner).to(ServerPluginProxyRunner).inSingletonScope();
+    bind(LogHostedPluginProcess).toSelf().inSingletonScope();
+    rebind(HostedPluginProcess).toService(LogHostedPluginProcess);
 });
 
 export default new ContainerModule(bind => {
+    try {
+        // Force to include theia-plugin-ext inside node_modules
+        require('@eclipse-che/theia-plugin-ext/lib/node/che-plugin-api-provider.js');
+    } catch (err) {
+        console.log('Unable to set up che theia plugin api: ', err);
+    }
     bind(HostedPluginMapping).toSelf().inSingletonScope();
     bind(MetadataProcessor).to(RemoteMetadataProcessor).inSingletonScope();
     bind(PluginReaderExtension).toSelf().inSingletonScope();

@@ -18,8 +18,7 @@
     "@eclipse-che/theia-plugin-ext": "^0.0.1"
   },
   "devDependencies": {
-    "rimraf": "latest",
-    "typescript": "latest"
+    "rimraf": "latest"
   },
   "scripts": {
     "prepare": "yarn run clean && yarn run build",
@@ -32,7 +31,8 @@
   },
   "theiaExtensions": [
     {
-      "backend": "lib/node/che-theia-user-preferences-backend-module"
+      "backend": "lib/node/che-theia-user-preferences-backend-module",
+      "frontend": "lib/browser/che-theia-user-preferences-frontend-module"
     }
   ]
 }

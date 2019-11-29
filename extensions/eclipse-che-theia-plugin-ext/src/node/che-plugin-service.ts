@@ -7,18 +7,22 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  **********************************************************************/
+import { CheApiService, WorkspaceSettings } from '../common/che-protocol';
 import {
-    CheApiService,
     ChePluginService,
+    ChePluginServiceClient,
     ChePluginRegistry,
-    ChePluginMetadata,
-    WorkspaceSettings
-} from '../common/che-protocol';
+    ChePluginRegistries,
+    ChePluginMetadata
+} from '../common/che-plugin-protocol';
 import { injectable, interfaces } from 'inversify';
 import axios, { AxiosInstance } from 'axios';
 import { che as cheApi } from '@eclipse-che/api';
 import URI from '@theia/core/lib/common/uri';
 import { PluginFilter } from '../common/plugin/plugin-filter';
+import * as fs from 'fs-extra';
+import * as https from 'https';
+import { SS_CRT_PATH } from './che-https';
 
 const yaml = require('js-yaml');
 
@@ -35,7 +39,7 @@ export interface ChePluginMetadataInternal {
     description: string,
     publisher: string,
     links: {
-        self?: string,
+        'self': string,
         [link: string]: string
     }
 }
@@ -43,14 +47,29 @@ export interface ChePluginMetadataInternal {
 @injectable()
 export class ChePluginServiceImpl implements ChePluginService {
 
-    private axiosInstance: AxiosInstance = axios;
+    private axiosInstance: AxiosInstance;
 
     private cheApiService: CheApiService;
 
     private defaultRegistry: ChePluginRegistry;
 
+    private client: ChePluginServiceClient | undefined;
+
+    private cachedPlugins: ChePluginMetadata[] = [];
+
     constructor(container: interfaces.Container) {
         this.cheApiService = container.get(CheApiService);
+    }
+
+    setClient(client: ChePluginServiceClient) {
+        this.client = client;
+    }
+
+    disconnectClient(client: ChePluginServiceClient) {
+        this.client = undefined;
+    }
+
+    dispose() {
     }
 
     async getDefaultRegistry(): Promise<ChePluginRegistry> {
@@ -63,14 +82,15 @@ export class ChePluginServiceImpl implements ChePluginService {
             if (workspaceSettings && workspaceSettings['cheWorkspacePluginRegistryUrl']) {
                 let uri = workspaceSettings['cheWorkspacePluginRegistryUrl'];
 
-                if (uri.endsWith('/')) {
-                    uri = uri.substring(0, uri.length - 1);
-                }
+                if (!uri.endsWith('/plugins/')) {
+                    if (uri.endsWith('/')) {
+                        uri = uri.substring(0, uri.length - 1);
+                    }
 
-                if (!uri.endsWith('/plugins')) {
-                    uri += '/plugins/';
+                    if (!uri.endsWith('/plugins')) {
+                        uri += '/plugins/';
+                    }
                 }
-
                 this.defaultRegistry = {
                     name: 'Eclipse Che plugins',
                     uri: uri
@@ -81,76 +101,121 @@ export class ChePluginServiceImpl implements ChePluginService {
 
             return Promise.reject('Plugin registry URI is not set.');
         } catch (error) {
-            // console.log('ERROR', error);
-            // return Promise.reject('Unable to get default plugin registry URI. ' + error.message);
-
-            // A temporary solution. Should throw an error instead.
-            this.defaultRegistry = {
-                name: 'Eclipse Che plugin registry',
-                uri: 'https://che-plugin-registry.openshift.io/v3/plugins/'
-            };
-            return this.defaultRegistry;
+            console.error(error);
+            return Promise.reject(`Unable to get default plugin registry URI. ${error.message}`);
         }
     }
 
-    /**
-     * Removes plugins with type 'Che Editor' if type '@type:che_editor' is not set
-     */
-    squeezeOutEditors(plugins: ChePluginMetadata[], filter: string): ChePluginMetadata[] {
-        // do not filter if user requested list of editors
-        if (PluginFilter.hasType(filter, '@type:che_editor')) {
-            return plugins;
+    private getAxiosInstance(): AxiosInstance {
+        if (!this.axiosInstance) {
+            if (fs.pathExistsSync(SS_CRT_PATH)) {
+                const agent = new https.Agent({
+                    ca: fs.readFileSync(SS_CRT_PATH)
+                });
+                this.axiosInstance = axios.create({ httpsAgent: agent });
+            } else {
+                this.axiosInstance = axios;
+            }
+            this.axiosInstance.defaults.headers.common['Cache-Control'] = 'no-cache';
         }
 
+        return this.axiosInstance;
+    }
+
+    /**
+     * Removes plugins with type 'Che Editor'
+     */
+    squeezeOutEditors(plugins: ChePluginMetadata[], filter: string): ChePluginMetadata[] {
         return plugins.filter(plugin => 'Che Editor' !== plugin.type);
     }
 
+    async sleep(miliseconds: number): Promise<void> {
+        return new Promise(resolve => {
+            setTimeout(() => {
+                resolve();
+            }, miliseconds);
+        });
+    }
+
     /**
-     * Returns a list of available plugins on the plugin registry.
+     * Updates the plugin cache
      *
-     * @param registry ChePluginRegistry plugin registry
-     * @param filter filter
-     * @return list of available plugins
+     * @param registryList list of plugin registries
      */
-    async getPlugins(registry: ChePluginRegistry, filter: string): Promise<ChePluginMetadata[]> {
+    async updateCache(registries: ChePluginRegistries): Promise<void> {
+        if (!this.client) {
+            return;
+        }
+
+        // clear cache
+        this.cachedPlugins = [];
+
         // ensure default plugin registry URI is set
         if (!this.defaultRegistry) {
             await this.getDefaultRegistry();
         }
 
-        // get list of plugins
-        let pluginList = await this.getAllPlugins(registry);
+        let availablePlugins = 0;
+        await this.client.notifyPluginCacheSizeChanged(0);
+
+        for (const registryName in registries) {
+            if (!registries.hasOwnProperty(registryName)) {
+                continue;
+            }
+
+            const registry = registries[registryName];
+            try {
+                // Get list of ChePluginMetadataInternal from plugin registry
+                const registryPlugins = await this.loadPluginList(registry);
+                availablePlugins += registryPlugins.length;
+                await this.client.notifyPluginCacheSizeChanged(availablePlugins);
+
+                // Plugin key used to specify a plugin in the devfile.
+                // It can be short:
+                //      {publisher}/{pluginName}/{version}
+                // or long, including the path to plugin meta.yaml
+                //      {http/https}://{host}/{path}/{publisher}/{pluginName}/{version}
+                const longKeyFormat = registry.uri !== this.defaultRegistry.uri;
+
+                for (let pIndex = 0; pIndex < registryPlugins.length; pIndex++) {
+                    const metadataInternal: ChePluginMetadataInternal = registryPlugins[pIndex];
+                    const pluginYamlURI = this.getPluginYampURI(registry, metadataInternal);
+
+                    try {
+                        const pluginMetadata = await this.loadPluginMetadata(pluginYamlURI!, longKeyFormat);
+                        this.cachedPlugins.push(pluginMetadata);
+                        await this.client.notifyPluginCached(this.cachedPlugins.length);
+                    } catch (error) {
+                        console.log('Unable go get plugin metadata from ' + pluginYamlURI);
+                        await this.client.invaligPluginFound(pluginYamlURI);
+                    }
+                }
+            } catch (error) {
+                console.log('Cannot access the registry', error);
+                await this.client.invalidRegistryFound(registry);
+            }
+        }
+
+        // notify client that caching the plugins has been finished
+        await this.client.notifyCachingComplete();
+    }
+
+    /**
+     * Returns a list of available plugins on the plugin registry.
+     *
+     * @param filter filter
+     * @return list of available plugins
+     */
+    async getPlugins(filter: string): Promise<ChePluginMetadata[]> {
+        let pluginList: ChePluginMetadata[] = [...this.cachedPlugins];
 
         // filter plugins
         if (filter) {
             pluginList = PluginFilter.filterPlugins(pluginList, filter);
         }
 
-        // remove che_editor if type @type:che_editor is not set
-        pluginList = this.squeezeOutEditors(pluginList, filter);
-
-        return pluginList;
-    }
-
-    /**
-     * Returns non-filtered list of the plugins from the given plugin registry.
-     */
-    async getAllPlugins(registry: ChePluginRegistry): Promise<ChePluginMetadata[]> {
-        // Get list of ChePluginMetadataInternal from plugin registry
-        const marketplacePlugins = await this.loadPluginList(registry);
-        if (!marketplacePlugins) {
-            return Promise.reject('Unable to get plugins from marketplace');
-        }
-
-        const longKeyFormat = registry.uri !== this.defaultRegistry.uri;
-        const plugins: ChePluginMetadata[] = await Promise.all(
-            marketplacePlugins.map(async marketplacePlugin => {
-                const pluginYamlURI = this.getPluginYampURI(registry, marketplacePlugin);
-                return await this.loadPluginMetadata(pluginYamlURI, longKeyFormat);
-            }
-            ));
-
-        return plugins.filter(plugin => plugin !== null && plugin !== undefined);
+        // remove editors
+        return this.squeezeOutEditors(pluginList, filter);
     }
 
     /**
@@ -159,13 +224,8 @@ export class ChePluginServiceImpl implements ChePluginService {
      * @param registry ChePluginRegistry plugin registry
      * @return list of available plugins
      */
-    private async loadPluginList(registry: ChePluginRegistry): Promise<ChePluginMetadataInternal[] | undefined> {
-        try {
-            const noCache = { headers: { 'Cache-Control': 'no-cache' } };
-            return (await this.axiosInstance.get<ChePluginMetadataInternal[]>(registry.uri, noCache)).data;
-        } catch (error) {
-            return undefined;
-        }
+    private async loadPluginList(registry: ChePluginRegistry): Promise<ChePluginMetadataInternal[]> {
+        return (await this.getAxiosInstance().get<ChePluginMetadataInternal[]>(registry.uri)).data;
     }
 
     /**
@@ -175,7 +235,7 @@ export class ChePluginServiceImpl implements ChePluginService {
      * @param plugin plugin metadata
      * @return uri to plugin yaml file
      */
-    private getPluginYampURI(registry: ChePluginRegistry, plugin: ChePluginMetadataInternal): string | undefined {
+    private getPluginYampURI(registry: ChePluginRegistry, plugin: ChePluginMetadataInternal): string {
         if (plugin.links && plugin.links.self) {
             const self: string = plugin.links.self;
             if (self.startsWith('/')) {
@@ -206,13 +266,12 @@ export class ChePluginServiceImpl implements ChePluginService {
     }
 
     private async loadPluginYaml(yamlURI: string): Promise<ChePluginMetadata> {
-        const noCache = { headers: { 'Cache-Control': 'no-cache' } };
-
         let err;
         try {
-            const data = (await this.axiosInstance.get<ChePluginMetadata[]>(yamlURI, noCache)).data;
+            const data = (await this.getAxiosInstance().get<ChePluginMetadata[]>(yamlURI)).data;
             return yaml.safeLoad(data);
         } catch (error) {
+            console.error(error);
             err = error;
         }
 
@@ -221,9 +280,10 @@ export class ChePluginServiceImpl implements ChePluginService {
                 yamlURI += '/';
             }
             yamlURI += 'meta.yaml';
-            const data = (await this.axiosInstance.get<ChePluginMetadata[]>(yamlURI, noCache)).data;
+            const data = (await this.getAxiosInstance().get<ChePluginMetadata[]>(yamlURI)).data;
             return yaml.safeLoad(data);
         } catch (error) {
+            console.error(error);
             return Promise.reject('Unable to load plugin metadata. ' + err.message);
         }
     }
@@ -262,7 +322,7 @@ export class ChePluginServiceImpl implements ChePluginService {
             };
 
         } catch (error) {
-            console.log(error);
+            console.log(`Cannot get ${yamlURI}`, error);
             return Promise.reject('Unable to load plugin metadata. ' + error.message);
         }
     }
@@ -332,8 +392,8 @@ export class ChePluginServiceImpl implements ChePluginService {
      */
     async setWorkspacePlugins(plugins: string[]): Promise<void> {
         const workspace: cheApi.workspace.Workspace = await this.cheApiService.currentWorkspace();
-        if (!workspace.devfile.components) {
-            workspace.devfile.components = [];
+        if (!workspace.devfile!.components) {
+            workspace.devfile!.components = [];
         }
 
         if (workspace.config) {
@@ -350,7 +410,7 @@ export class ChePluginServiceImpl implements ChePluginService {
 
             components.forEach((component: cheApi.workspace.devfile.Component) => {
                 const id = component.reference ? this.normalizeId(component.reference) : component.id;
-                const foundIndex = plugins.indexOf(id);
+                const foundIndex = plugins.indexOf(id!);
                 if (foundIndex >= 0) {
                     plugins.splice(foundIndex, 1);
                 } else {
@@ -359,11 +419,11 @@ export class ChePluginServiceImpl implements ChePluginService {
             });
 
             plugins.forEach((plugin: string) => {
-                workspace.devfile.components.push(this.createPluginComponent(plugin));
+                workspace.devfile!.components!.push(this.createPluginComponent(plugin));
             });
         }
 
-        await this.cheApiService.updateWorkspace(workspace.id, workspace);
+        await this.cheApiService.updateWorkspace(workspace.id!, workspace);
     }
 
     /**

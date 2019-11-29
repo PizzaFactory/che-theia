@@ -18,9 +18,20 @@ import { ContainerModule } from 'inversify';
 import { GitConfigurationListenerContribution } from './git-configuration-contribution';
 import { GitConfigurationController } from './git-configuration-controller';
 import { BackendApplicationContribution } from '@theia/core/lib/node/backend-application';
+import { CheGitService, CheGitServicePath, CheGitClient } from '../common/git-protocol';
+import { ConnectionHandler, JsonRpcConnectionHandler } from '@theia/core/lib/common';
 
 export default new ContainerModule(bind => {
     bind(GitConfigurationController).toSelf().inSingletonScope();
+    bind(CheGitService).toService(GitConfigurationController);
     bind(GitConfigurationListenerContribution).toSelf().inSingletonScope();
     bind(BackendApplicationContribution).toService(GitConfigurationListenerContribution);
+    bind(ConnectionHandler).toDynamicValue(ctx =>
+        new JsonRpcConnectionHandler<CheGitClient>(CheGitServicePath, client => {
+            const server = ctx.container.get<CheGitService>(CheGitService);
+            server.setClient(client);
+            client.onDidCloseConnection(() => server.dispose());
+            return server;
+        })
+    ).inSingletonScope();
 });

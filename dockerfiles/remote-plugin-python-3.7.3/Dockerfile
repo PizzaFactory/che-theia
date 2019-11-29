@@ -7,26 +7,28 @@
 #
 # Contributors:
 #   Red Hat, Inc. - initial API and implementation
-FROM ${BUILD_ORGANIZATION}/${BUILD_PREFIX}-theia-endpoint-runtime:${BUILD_TAG} as endpoint
 
-FROM python:3.7.4-slim
-
-ENV HOME=/home/theia
+FROM python:3.7.3-slim
 
 RUN apt-get update && \
     apt-get install wget -y && \
 	wget -O - https://deb.nodesource.com/setup_10.x | bash - && \
     apt-get update && \
-	apt-get install nodejs -y && \
-	apt-get clean && apt-get -y autoremove && rm -rf /var/lib/apt/lists/* && \
-    pip install pylint python-language-server[all] ptvsd 'jedi<0.15,>=0.14.1'
+	apt-get install nodejs gcc build-essential -y && \
+    pip install pylint python-language-server[all] ptvsd 'jedi<0.15,>=0.14.1' && \
+    apt-get purge -y --auto-remove gcc build-essential && \
+	apt-get clean && apt-get -y autoremove && rm -rf /var/lib/apt/lists/*
 
-COPY --from=endpoint /home/theia /home/theia
-COPY --from=endpoint /projects /projects
-COPY --from=endpoint /etc/passwd  /etc/passwd
-COPY --from=endpoint /etc/group   /etc/group
-COPY --from=endpoint /entrypoint.sh /entrypoint.sh
+ENV HOME=/home/theia
 
-RUN chmod -R 777 ${HOME}
+RUN mkdir /projects ${HOME} && \
+    # Change permissions to let any arbitrary user
+    for f in "${HOME}" "/etc/passwd" "/projects"; do \
+      echo "Changing permissions on ${f}" && chgrp -R 0 ${f} && \
+      chmod -R g+rwX ${f}; \
+    done
 
-ENTRYPOINT ["bash", "/entrypoint.sh"]
+ADD etc/entrypoint.sh /entrypoint.sh
+
+ENTRYPOINT [ "/entrypoint.sh" ]
+CMD ${PLUGIN_REMOTE_ENDPOINT_EXECUTABLE}

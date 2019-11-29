@@ -122,6 +122,12 @@ async function onOpenPort(port: Port) {
         if (matchingWorkspacePort.serverName.startsWith(SERVER_REDIRECT_PATTERN)) {
             return;
         }
+
+        // check if endpoint has preview url, and if so do not show dialog to avoid duplication with task plugin
+        if (matchingWorkspacePort.previewUrl) {
+            return;
+        }
+
         const interactions: MessageItem[] = [{ title: 'Open Link' }];
         const msg = `A process is now listening on port ${matchingWorkspacePort.portNumber}. External URL is ${matchingWorkspacePort.url}`;
         const result = await theia.window.showInformationMessage(msg, { modal: true }, ...interactions);
@@ -145,7 +151,7 @@ function onClosedPort(port: Port) {
     if (redirectListeners.has(portNumber)) {
 
         // stop the redirect
-        const busyPort = redirectListeners.get(portNumber);
+        const busyPort = redirectListeners.get(portNumber)!;
         busyPort.portRedirectListener.stop();
 
         // free up the port
@@ -173,7 +179,7 @@ export async function start(context: theia.PluginContext): Promise<void> {
     // initiate excluded ports
     const excludedPortProperties: string[] = Object.keys(process.env).filter(key => key.startsWith(PORT_EXCLUDE_ENV_VAR_PREFIX));
     excludedPortProperties.forEach(key => {
-        const value = process.env[key].toLocaleLowerCase() || '';
+        const value = process.env[key]!.toLocaleLowerCase() || '';
         if (value !== 'no' && value !== 'false') {
             excludedPorts.push(parseInt(key.substring(PORT_EXCLUDE_ENV_VAR_PREFIX.length)));
         }
