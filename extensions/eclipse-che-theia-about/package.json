@@ -6,7 +6,9 @@
   "version": "0.0.1",
   "description": "Eclipse Che - Theia About menu",
   "dependencies": {
-    "@theia/core": "next"
+    "@theia/core": "next",
+    "@theia/mini-browser": "next",
+    "@eclipse-che/theia-plugin-ext": "0.0.1"
   },
   "publishConfig": {
     "access": "public"

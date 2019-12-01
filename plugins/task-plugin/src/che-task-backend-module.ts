@@ -30,6 +30,8 @@ import { ConfigFileLaunchConfigsExtractor } from './extract/config-file-launch-c
 import { ConfigFileTasksExtractor } from './extract/config-file-task-configs-extractor';
 import { VsCodeLaunchConfigsExtractor } from './extract/vscode-launch-configs-extractor';
 import { VsCodeTaskConfigsExtractor } from './extract/vscode-task-configs-extractor';
+import { PreviewUrlVariableResolver } from './variable/preview-url-variable-resolver';
+import { BackwardCompatibilityResolver } from './task/backward-compatibility';
 
 const container = new Container();
 container.bind(CheTaskProvider).toSelf().inSingletonScope();
@@ -40,6 +42,7 @@ container.bind(MachinesPicker).toSelf().inSingletonScope();
 container.bind(MachineExecClient).toSelf().inSingletonScope();
 container.bind(MachineExecWatcher).toSelf().inSingletonScope();
 container.bind(ServerVariableResolver).toSelf().inSingletonScope();
+container.bind(PreviewUrlVariableResolver).toSelf().inSingletonScope();
 container.bind(ProjectPathVariableResolver).toSelf().inSingletonScope();
 container.bind(CheWorkspaceClient).toSelf().inSingletonScope();
 container.bind(CheTaskPreviewMode).toSelf().inSingletonScope();
@@ -52,6 +55,7 @@ container.bind(ConfigFileTasksExtractor).toSelf().inSingletonScope();
 container.bind(ConfigFileLaunchConfigsExtractor).toSelf().inSingletonScope();
 container.bind(VsCodeLaunchConfigsExtractor).toSelf().inSingletonScope();
 container.bind(VsCodeTaskConfigsExtractor).toSelf().inSingletonScope();
+container.bind(BackwardCompatibilityResolver).toSelf().inSingletonScope();
 
 container.bind(PreviewUrlsWidget).toSelf().inTransientScope();
 container.bind(PreviewUrlsWidgetFactory).toDynamicValue(ctx => ({

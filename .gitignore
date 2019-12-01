@@ -12,9 +12,12 @@ yarn-error.log
 
 # Generated files
 *.theia
-
+asset-*
 
 # MacOS
 .DS_Store
 .theia
 .idea
+che-editor-plugin.tar.gz
+inner-theia
+.git-che-theia-sha1

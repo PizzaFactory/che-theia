@@ -44,7 +44,7 @@ export class CheTaskRunner {
     /**
      * Runs a task from the given task configuration which must have a target property specified.
      */
-    async run(taskConfig: che.TaskConfiguration, ctx?: string): Promise<che.Task> {
+    async run(taskConfig: che.TaskConfiguration, ctx?: string): Promise<che.TaskInfo> {
         const { type, label, ...definition } = taskConfig;
         if (type !== CHE_TASK_TYPE) {
             throw new Error(`Unsupported task type: ${type}`);
@@ -70,6 +70,7 @@ export class CheTaskRunner {
                 attributes: {
                     CHE_MACHINE_NAME: containerName,
                     closeWidgetExitOrError: 'false',
+                    interruptProcessOnClose: 'true'
                 }
             };
             const terminal = theia.window.createTerminal(terminalOptions);
@@ -77,20 +78,30 @@ export class CheTaskRunner {
             const execId = await terminal.processId;
 
             return {
-                kill: () => {
-                    throw new Error('Stopping a Che task currently is not supported.');
-                },
-                getRuntimeInfo: () =>
-                    ({
-                        taskId: STUB_TASK_ID,
-                        ctx: ctx,
-                        config: taskConfig,
-                        execId: execId
-                    })
+                taskId: STUB_TASK_ID,
+                ctx: ctx,
+                config: taskConfig,
+                execId: execId
             };
         } catch (error) {
             console.error('Failed to execute Che command:', error);
             throw new Error(`Failed to execute Che command: ${error.message}`);
         }
+    }
+
+    /** Terminates a task based on the given info. */
+    async kill(taskInfo: che.TaskInfo): Promise<void> {
+        for (const terminal of theia.window.terminals) {
+            try {
+                const processId = await terminal.processId;
+                if (processId === taskInfo.execId) {
+                    terminal.sendText('\x03');
+                    return;
+                }
+            } catch (e) {
+                // allow to get process id for other terminals
+            }
+        }
+        throw new Error(`Failed to terminate Che command: ${taskInfo.config.label}: the corresponging terminal is not found`);
     }
 }

@@ -10,28 +10,40 @@
 
 import 'reflect-metadata';
 import * as http from 'http';
+import * as theia from '@theia/plugin';
 import * as ws from 'ws';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { logger } from '@theia/core';
 import { ILogger } from '@theia/core/lib/common';
 import { Emitter } from '@theia/core/lib/common/event';
-import { MAIN_RPC_CONTEXT, PluginDeployer, PluginDeployerEntry, PluginMetadata } from '@theia/plugin-ext';
+import { MAIN_RPC_CONTEXT, PluginDeployer, PluginDeployerEntry, PluginDependencies } from '@theia/plugin-ext';
+import { DeployedPlugin, PluginEntryPoint, PluginManagerStartParams, PluginInfo } from '@theia/plugin-ext';
 import pluginVscodeBackendModule from '@theia/plugin-ext-vscode/lib/node/plugin-vscode-backend-module';
 import { RPCProtocolImpl } from '@theia/plugin-ext/lib/common/rpc-protocol';
-import { PluginDeployerHandler } from '@theia/plugin-ext/lib/common';
+import { PluginDeployerHandler, OutputChannelRegistryExt } from '@theia/plugin-ext/lib/common';
 import { PluginHostRPC } from '@theia/plugin-ext/lib/hosted/node/plugin-host-rpc';
 import { HostedPluginReader } from '@theia/plugin-ext/lib/hosted/node/plugin-reader';
 import pluginExtBackendModule from '@theia/plugin-ext/lib/plugin-ext-backend-module';
 import { Container, inject, injectable } from 'inversify';
-import { DummyTraceLogger } from './dummy-trace-logger';
+import { RemoteHostTraceLogger, LogCallback } from './remote-trace-logger';
 import pluginRemoteBackendModule from './plugin-remote-backend-module';
 import { TerminalContainerAware } from './terminal-container-aware';
 import { PluginDiscovery } from './plugin-discovery';
 import { PluginReaderExtension } from './plugin-reader-extension';
+import { Deferred } from '@theia/core/lib/common/promise-util';
+import { DocumentContainerAware } from './document-container-aware';
+import { LanguagesContainerAware } from './languages-container-aware';
+import { PluginManagerExtImpl } from '@theia/plugin-ext/lib/plugin/plugin-manager';
+import { ExecuteCommandContainerAware } from './execute-command-container-aware';
 
 interface CheckAliveWS extends ws {
     alive: boolean;
+}
+
+function modifyPathToLocal(origPath: string): string {
+    return path.join(os.homedir(), origPath.substr(0, '/home/theia/'.length));
 }
 
 @injectable()
@@ -61,6 +73,7 @@ export class PluginRemoteInit {
     private sessionId = 0;
 
     private pluginReaderExtension: PluginReaderExtension;
+    private remoteTraceLogger: RemoteHostTraceLogger;
 
     constructor(private pluginPort: number) {
 
@@ -74,8 +87,13 @@ export class PluginRemoteInit {
         // Create inversify container
         const inversifyContainer = new Container();
 
+        this.remoteTraceLogger = new RemoteHostTraceLogger();
+
+        // init the logger
+        this.remoteTraceLogger.init();
+
         // bind logger to make it work
-        inversifyContainer.bind(ILogger).to(DummyTraceLogger).inSingletonScope();
+        inversifyContainer.bind(ILogger).toConstantValue(this.remoteTraceLogger);
 
         // Bind Plug-in system
         inversifyContainer.load(pluginExtBackendModule);
@@ -97,6 +115,15 @@ export class PluginRemoteInit {
         pluginDeployer.start();
 
         this.pluginReaderExtension = inversifyContainer.get(PluginReaderExtension);
+
+        // Modify 'configStorage' objects path, to use current user home directory
+        // in remote plugin image '/home/theia' doesn't exist
+        const originalStart = PluginManagerExtImpl.prototype.$start;
+        PluginManagerExtImpl.prototype.$start = async function (params: PluginManagerStartParams): Promise<void> {
+            params.configStorage = { hostLogPath: modifyPathToLocal(params.configStorage.hostLogPath), hostStoragePath: modifyPathToLocal(params.configStorage.hostLogPath) };
+            // call original method
+            return originalStart.call(this, params);
+        };
 
         // display message about process being started
         console.log(`Theia Endpoint ${process.pid}/pid listening on port`, this.pluginPort);
@@ -164,7 +191,8 @@ to pick-up automatically a free port`));
 
     // create a new client on top of socket
     newClient(id: number, socket: ws): WebSocketClient {
-        const emitter = new Emitter();
+        // tslint:disable-next-line:no-any
+        const emitter = new Emitter<any>();
         const webSocketClient = new WebSocketClient(id, socket, emitter);
         webSocketClient.rpc = new RPCProtocolImpl({
             onMessage: emitter.event,
@@ -180,9 +208,28 @@ to pick-up automatically a free port`));
 
         // override window.createTerminal to be container aware
         // tslint:disable-next-line:no-any
-        new TerminalContainerAware().overrideTerminal((webSocketClient.rpc as any).locals[MAIN_RPC_CONTEXT.TERMINAL_EXT.id]);
+        new TerminalContainerAware().overrideTerminal((webSocketClient.rpc as any).locals.get(MAIN_RPC_CONTEXT.TERMINAL_EXT.id));
         // tslint:disable-next-line:no-any
-        new TerminalContainerAware().overrideTerminalCreationOptionForDebug((webSocketClient.rpc as any).locals[MAIN_RPC_CONTEXT.DEBUG_EXT.id]);
+        new TerminalContainerAware().overrideTerminalCreationOptionForDebug((webSocketClient.rpc as any).locals.get(MAIN_RPC_CONTEXT.DEBUG_EXT.id));
+        // tslint:disable-next-line:no-any
+        DocumentContainerAware.makeDocumentContainerAware((webSocketClient.rpc as any).locals.get(MAIN_RPC_CONTEXT.DOCUMENTS_EXT.id));
+        // tslint:disable-next-line:no-any
+        LanguagesContainerAware.makeLanguagesContainerAware((webSocketClient.rpc as any).locals.get(MAIN_RPC_CONTEXT.LANGUAGES_EXT.id));
+        // tslint:disable-next-line:no-any
+        ExecuteCommandContainerAware.makeExecuteCommandContainerAware((webSocketClient.rpc as any).locals.get(MAIN_RPC_CONTEXT.COMMAND_REGISTRY_EXT.id));
+
+        let channelName = '';
+        if (process.env.CHE_MACHINE_NAME) {
+            channelName = `Extension host (${process.env.CHE_MACHINE_NAME}) log`;
+        } else {
+            channelName = `Extension host (${this.pluginPort}) log`;
+        }
+        const pluginInfo: PluginInfo = { id: channelName, name: channelName };
+        // tslint:disable-next-line: no-any
+        const outputChannelRegistryExt: OutputChannelRegistryExt = (webSocketClient.rpc as any).locals.get(MAIN_RPC_CONTEXT.OUTPUT_CHANNEL_REGISTRY_EXT.id);
+        const outputChannel = outputChannelRegistryExt.createOutputChannel(channelName, pluginInfo);
+        const outputChannelLogCallback = new OutputChannelLogCallback(outputChannel);
+        this.remoteTraceLogger.addCallback(webSocketClient, outputChannelLogCallback);
 
         return webSocketClient;
     }
@@ -198,6 +245,7 @@ to pick-up automatically a free port`));
         });
 
         socket.on('close', (code, reason) => {
+            this.remoteTraceLogger.removeCallback(channelId);
             webSocketClients.delete(channelId);
         });
 
@@ -211,7 +259,9 @@ to pick-up automatically a free port`));
                 if (jsonParsed.internal.method && jsonParsed.internal.method === 'stop') {
                     try {
                         // wait to stop plug-ins
-                        await client.pluginHostRPC.stopContext();
+                        // FIXME: we need to fix this
+                        // tslint:disable-next-line: no-any
+                        await (<any>client.pluginHostRPC).pluginManager.$stop();
 
                         // ok now we can dispose the emitter
                         client.disposeEmitter();
@@ -250,16 +300,15 @@ to pick-up automatically a free port`));
                 // asked to grab metadata, send them
                 if (jsonParsed.internal.metadata && 'request' === jsonParsed.internal.metadata) {
                     // apply host on all local metadata
-                    currentBackendPluginsMetadata.forEach(metadata => metadata.host = jsonParsed.internal.endpointName);
+                    currentBackendDeployedPlugins.forEach(deployedPlugin => deployedPlugin.metadata.host = jsonParsed.internal.endpointName);
                     const metadataResult = {
                         'internal': {
                             'endpointName': jsonParsed.internal.endpointName,
                             'metadata': {
-                                'result': currentBackendPluginsMetadata
+                                'result': currentBackendDeployedPlugins
                             }
                         }
                     };
-
                     client.send(metadataResult);
                 }
                 return;
@@ -275,7 +324,7 @@ to pick-up automatically a free port`));
 /**
  * Wrapper for adding Message ID on every message that is sent.
  */
-class WebSocketClient {
+export class WebSocketClient {
 
     public rpc: RPCProtocolImpl;
 
@@ -317,7 +366,7 @@ class WebSocketClient {
 // list of clients
 const webSocketClients = new Map<number, WebSocketClient>();
 
-const currentBackendPluginsMetadata: PluginMetadata[] = [];
+const currentBackendDeployedPlugins: DeployedPlugin[] = [];
 
 @injectable()
 class PluginDeployerHandlerImpl implements PluginDeployerHandler {
@@ -331,9 +380,29 @@ class PluginDeployerHandlerImpl implements PluginDeployerHandler {
     // announced ?
     private announced = false;
 
-    constructor(
-        @inject(HostedPluginReader) private readonly reader: HostedPluginReader,
-    ) {
+    /**
+     * Managed plugin metadata backend entries.
+     */
+    private readonly deployedBackendPlugins = new Map<string, DeployedPlugin>();
+
+    @inject(HostedPluginReader)
+    private readonly reader: HostedPluginReader;
+
+    private backendPluginsMetadataDeferred = new Deferred<void>();
+
+    async getDeployedFrontendPluginIds(): Promise<string[]> {
+        return [];
+    }
+
+    async getDeployedBackendPluginIds(): Promise<string[]> {
+        // await first deploy
+        await this.backendPluginsMetadataDeferred.promise;
+        // fetch the last deployed state
+        return [...this.deployedBackendPlugins.keys()];
+    }
+
+    getDeployedPlugin(pluginId: string): DeployedPlugin | undefined {
+        return this.deployedBackendPlugins.get(pluginId);
     }
 
     async deployFrontendPlugins(frontendPlugins: PluginDeployerEntry[]): Promise<void> {
@@ -344,13 +413,10 @@ class PluginDeployerHandlerImpl implements PluginDeployerHandler {
 
     async deployBackendPlugins(backendPlugins: PluginDeployerEntry[]): Promise<void> {
         for (const plugin of backendPlugins) {
-            const metadata = await this.reader.getPluginMetadata(plugin.path());
-            if (metadata) {
-                currentBackendPluginsMetadata.push(metadata);
-                const pluginPath = metadata.model.entryPoint.backend || plugin.path();
-                this.logger.info(`Backend plug-in "${metadata.model.name}@${metadata.model.version}" from "${pluginPath} is now available"`);
-            }
+            await this.deployPlugin(plugin, 'backend');
         }
+        // resolve on first deploy
+        this.backendPluginsMetadataDeferred.resolve(undefined);
 
         // ok now we're ready to announce as plugins have been deployed
         if (!this.announced) {
@@ -360,9 +426,83 @@ class PluginDeployerHandlerImpl implements PluginDeployerHandler {
         }
 
     }
+    async getPluginDependencies(pluginToBeInstalled: PluginDeployerEntry): Promise<PluginDependencies | undefined> {
+        const pluginPath = pluginToBeInstalled.path();
+        try {
+            const manifest = await this.reader.readPackage(pluginPath);
+            if (!manifest) {
+                return undefined;
+            }
+            const metadata = this.reader.readMetadata(manifest);
+            const dependencies: PluginDependencies = { metadata };
+            dependencies.mapping = this.reader.readDependencies(manifest);
+            return dependencies;
+        } catch (e) {
+            console.error(`Failed to load plugin dependencies from '${pluginPath}' path`, e);
+            return undefined;
+        }
+    }
 
-    getPluginMetadata(pluginToBeInstalled: PluginDeployerEntry): Promise<PluginMetadata> {
-        return this.reader.getPluginMetadata(pluginToBeInstalled.path());
+    /**
+     * @throws never! in order to isolate plugin deployment
+     */
+    protected async deployPlugin(entry: PluginDeployerEntry, entryPoint: keyof PluginEntryPoint): Promise<void> {
+        const pluginPath = entry.path();
+        try {
+            const manifest = await this.reader.readPackage(pluginPath);
+            if (!manifest) {
+                return;
+            }
+
+            const metadata = this.reader.readMetadata(manifest);
+            if (this.deployedBackendPlugins.has(metadata.model.id)) {
+                return;
+            }
+
+            const deployed: DeployedPlugin = { metadata };
+            deployed.contributes = this.reader.readContribution(manifest);
+            this.deployedBackendPlugins.set(metadata.model.id, deployed);
+            currentBackendDeployedPlugins.push(deployed);
+            this.logger.info(`Deploying ${entryPoint} plugin "${metadata.model.name}@${metadata.model.version}" from "${metadata.model.entryPoint[entryPoint] || pluginPath}"`);
+        } catch (e) {
+            console.error(`Failed to deploy ${entryPoint} plugin from '${pluginPath}' path`, e);
+        }
+    }
+
+}
+
+class OutputChannelLogCallback implements LogCallback {
+
+    constructor(readonly outputChannel: theia.OutputChannel) {
+
+    }
+    // tslint:disable-next-line:no-any
+    async log(message: any, ...params: any[]): Promise<void> {
+        this.outputChannel.appendLine('LOG:' + message + params);
+    }
+    // tslint:disable-next-line:no-any
+    async trace(message: any, ...params: any[]): Promise<void> {
+        this.outputChannel.appendLine('TRACE:' + message + params);
+    }
+    // tslint:disable-next-line:no-any
+    async debug(message: any, ...params: any[]): Promise<void> {
+        this.outputChannel.appendLine('DEBUG:' + message + params);
+    }
+    // tslint:disable-next-line:no-any
+    async info(message: any, ...params: any[]): Promise<void> {
+        this.outputChannel.appendLine('INFO:' + message + params);
+    }
+    // tslint:disable-next-line:no-any
+    async warn(message: any, ...params: any[]): Promise<void> {
+        this.outputChannel.appendLine('WARN:' + message + params);
+    }
+    // tslint:disable-next-line:no-any
+    async error(message: any, ...params: any[]): Promise<void> {
+        this.outputChannel.appendLine('ERROR:' + message + params);
+    }
+    // tslint:disable-next-line:no-any
+    async fatal(message: any, ...params: any[]): Promise<void> {
+        this.outputChannel.appendLine('FATAL:' + message + params);
     }
 
 }

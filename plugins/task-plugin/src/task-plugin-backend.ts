@@ -13,6 +13,7 @@ import { container } from './che-task-backend-module';
 import * as theia from '@theia/plugin';
 import * as che from '@eclipse-che/plugin';
 import { CHE_TASK_TYPE } from './task/task-protocol';
+import { CHE_TASK_SCHEMA } from './schema/che-task-schema';
 import { CheTaskProvider } from './task/che-task-provider';
 import { CheTaskRunner } from './task/che-task-runner';
 import { ServerVariableResolver } from './variable/server-variable-resolver';
@@ -20,6 +21,7 @@ import { ProjectPathVariableResolver } from './variable/project-path-variable-re
 import { CheTaskEventsHandler } from './preview/task-events-handler';
 import { TasksPreviewManager } from './preview/tasks-preview-manager';
 import { ExportConfigurationsManager } from './export/export-configs-manager';
+import { PreviewUrlVariableResolver } from './variable/preview-url-variable-resolver';
 
 let pluginContext: theia.PluginContext;
 let outputChannel: theia.OutputChannel | undefined;
@@ -36,6 +38,9 @@ export async function start(context: theia.PluginContext) {
     const serverVariableResolver = container.get<ServerVariableResolver>(ServerVariableResolver);
     serverVariableResolver.registerVariables();
 
+    const previewUrlVariableResolver = container.get<PreviewUrlVariableResolver>(PreviewUrlVariableResolver);
+    previewUrlVariableResolver.registerVariables();
+
     const projectPathVariableResolver = container.get<ProjectPathVariableResolver>(ProjectPathVariableResolver);
     projectPathVariableResolver.registerVariables();
 
@@ -49,6 +54,8 @@ export async function start(context: theia.PluginContext) {
 
     const exportConfigurationsManager = container.get<ExportConfigurationsManager>(ExportConfigurationsManager);
     exportConfigurationsManager.export();
+
+    che.task.addTaskSubschema(CHE_TASK_SCHEMA);
 }
 
 export function stop() { }

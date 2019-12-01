@@ -8,15 +8,22 @@
  * SPDX-License-Identifier: EPL-2.0
  **********************************************************************/
 
+import * as path from 'path';
 import { AboutDialog, AboutDialogProps, ABOUT_EXTENSIONS_CLASS, ABOUT_CONTENT_CLASS } from '@theia/core/lib/browser/about-dialog';
 import { injectable, inject, postConstruct } from 'inversify';
+import { CheProductService, Product } from '@eclipse-che/theia-plugin-ext/lib/common/che-protocol';
 import { ThemeService, Theme } from '@theia/core/lib/browser/theming';
-const logoDark = require('../../src/browser/style/che-logo-dark.svg');
-const logoLight = require('../../src/browser/style/che-logo-light.svg');
+import { Logo } from '@eclipse-che/plugin';
+
+import '../../src/browser/style/che-theia-about.css';
+
 const jsonDetails = require('../../conf/about-details.json');
 
 @injectable()
 export class AboutCheTheiaDialog extends AboutDialog {
+
+    @inject(CheProductService)
+    private productService: CheProductService;
 
     @inject(ThemeService)
     protected readonly themeService: ThemeService;
@@ -24,32 +31,87 @@ export class AboutCheTheiaDialog extends AboutDialog {
     constructor(
         @inject(AboutDialogProps) protected readonly props: AboutDialogProps
     ) {
-        super(props);
+        // use empty header by default
+        super({
+            title: ''
+        });
+    }
+
+    /**
+     * Returns suitable URI as a string for the logo image
+     */
+    protected getLogo(logo: string): string {
+        if (logo.startsWith('http://') || logo.startsWith('https://')) {
+            // HTTP resource
+            return logo;
+        }
+
+        if (logo.startsWith('file://')) {
+            // file resource
+            logo = logo.substring(7);
+        }
+
+        // Use relative endpoint path
+        return path.join('mini-browser', logo);
+    }
+
+    /**
+     * Check if theme is dark or not
+     */
+    private isDark(theme: Theme): boolean {
+        const currentThemeId: string = theme.id;
+        return !currentThemeId.includes('light');
+    }
+
+    /**
+     * Returns product header element
+     */
+    protected async getProductHeader(product: Product): Promise<HTMLElement> {
+        const header = document.createElement('div');
+        header.setAttribute('class', 'che-theia-about-product-header');
+
+        const logo = document.createElement('div');
+        logo.setAttribute('class', 'che-theia-about-product-logo');
+        const image = document.createElement('img');
+
+        if (typeof product.logo === 'object') {
+            const productLogo: Logo = product.logo as Logo;
+            if (this.isDark(this.themeService.getCurrentTheme())) {
+                image.setAttribute('src', this.getLogo(productLogo.dark));
+            } else {
+                image.setAttribute('src', this.getLogo(productLogo.light));
+            }
+
+            // listen on events when the theme is changing to update the logo
+            this.themeService.onThemeChange(e => {
+                if (this.isDark(e.newTheme)) {
+                    image.setAttribute('src', this.getLogo(productLogo.dark));
+                } else {
+                    image.setAttribute('src', this.getLogo(productLogo.light));
+                }
+            });
+
+        } else {
+            image.setAttribute('src', this.getLogo(product.logo));
+        }
+
+        logo.appendChild(image);
+        header.appendChild(logo);
+
+        return header;
     }
 
     @postConstruct()
     protected async init(): Promise<void> {
+        // Get product info
+        const product = await this.productService.getProduct();
+
+        // Set dialog title
+        this.titleNode.textContent = product.name;
+
         const messageNode = document.createElement('div');
         messageNode.classList.add(ABOUT_CONTENT_CLASS);
-        const imgObject = document.createElement('img');
-
-        if (this.isDark(this.themeService.getCurrentTheme())) {
-            imgObject.src = logoDark;
-        } else {
-            imgObject.src = logoLight;
-        }
-
-        // listen on events when the theme is changing to update the logo
-        this.themeService.onThemeChange(e => {
-            if (this.isDark(e.newTheme)) {
-                imgObject.src = logoDark;
-            } else {
-                imgObject.src = logoLight;
-            }
-
-        });
-
-        messageNode.appendChild(imgObject);
+        messageNode.appendChild(await this.getProductHeader(product));
 
         // Che-Theia
         const cheTheiaTitle = document.createElement('h4');
@@ -61,7 +123,7 @@ export class AboutCheTheiaDialog extends AboutDialog {
         cheTheiaLink.innerHTML = `${jsonDetails.cheTheiaSha1}`;
 
         const theiaLink = document.createElement('a');
-        theiaLink.setAttribute('href', `https://github.com/theia-ide/theia/commit/${jsonDetails.theiaSha1}`);
+        theiaLink.setAttribute('href', `https://github.com/eclipse-theia/theia/commit/${jsonDetails.theiaSha1}`);
         theiaLink.setAttribute('target', '_blank');
         theiaLink.setAttribute('style', 'color: var(--theia-ui-dialog-font-color);');
         theiaLink.innerHTML = `${jsonDetails.theiaSha1}`;
@@ -98,14 +160,6 @@ export class AboutCheTheiaDialog extends AboutDialog {
         date.textContent = `Built ${jsonDetails.date}`;
         messageNode.appendChild(date);
         this.appendAcceptButton('Ok');
-    }
-
-    /**
-     * Check if theme is dark or not
-     */
-    private isDark(theme: Theme): boolean {
-        const currentThemeId: string = theme.id;
-        return !currentThemeId.includes('light');
     }
 
 }

@@ -14,8 +14,38 @@ import { injectable } from 'inversify';
 
 const TERMINAL_SERVER_TYPE = 'terminal';
 
+export const RECIPE_CONTAINER_SOURCE = 'recipe';
+export const CONTAINER_SOURCE_ATTRIBUTE = 'source';
+
+export interface WorkspaceContainer extends cheApi.workspace.Machine {
+    name: string
+}
+
 @injectable()
 export class CheWorkspaceClient {
+
+    /** Returns 'key -> url' map of links for the current workspace. */
+    async getLinks(): Promise<{ [key: string]: string } | undefined> {
+        const workspace = await this.getCurrentWorkspace();
+        return workspace.links;
+    }
+
+    /** Returns array of containers' names for the current workspace. */
+    async getContainersNames(): Promise<string[]> {
+        const containerNames: string[] = [];
+
+        try {
+            const containers = await this.getMachines();
+            for (const containerName in containers) {
+                if (containers.hasOwnProperty(containerName)) {
+                    containerNames.push(containerName);
+                }
+            }
+        } catch (error) {
+        } finally {
+            return containerNames;
+        }
+    }
 
     async getMachines(): Promise<{ [attrName: string]: cheApi.workspace.Machine }> {
         const workspace = await this.getCurrentWorkspace();
@@ -31,10 +61,32 @@ export class CheWorkspaceClient {
         return machines;
     }
 
+    async getContainers(): Promise<WorkspaceContainer[]> {
+        const containers: WorkspaceContainer[] = [];
+        try {
+            const workspace = await this.getCurrentWorkspace();
+
+            if (workspace.runtime && workspace.runtime.machines) {
+                const machines = workspace.runtime.machines;
+                for (const machineName in machines) {
+                    if (!machines.hasOwnProperty(machineName)) {
+                        continue;
+                    }
+                    const container: WorkspaceContainer = { name: machineName, ...machines[machineName] };
+                    containers.push(container);
+                }
+            }
+        } catch (e) {
+            throw new Error('Unable to get list workspace containers. Cause: ' + e);
+        }
+
+        return containers;
+    }
+
     async getCommands(): Promise<cheApi.workspace.Command[]> {
         const workspace: cheApi.workspace.Workspace = await this.getCurrentWorkspace();
 
-        const runtime: cheApi.workspace.Runtime = workspace.runtime;
+        const runtime: cheApi.workspace.Runtime | undefined = workspace.runtime;
         if (!runtime) {
             return [];
         }

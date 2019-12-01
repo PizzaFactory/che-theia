@@ -58,68 +58,85 @@ export class ContainersTreeDataProvider implements theia.TreeDataProvider<ITreeN
         let hasRuntimeContainers = false;
 
         containers.forEach((container: IContainer) => {
-            const treeItem: ITreeNodeItem = {
+            // container node
+            const containerNode: ITreeNodeItem = {
                 id: this.getRandId(),
                 name: container.name,
-                tooltip: 'container name',
-                isExpanded: true
+                tooltip: 'container name'
             };
             switch (container.status) {
                 case 'STARTING':
-                    treeItem.iconPath = 'fa-circle medium-yellow';
-                    treeItem.tooltip = 'container is STARTING';
+                    containerNode.iconPath = 'fa-circle medium-yellow';
+                    containerNode.tooltip = 'container is STARTING';
                     break;
                 case 'RUNNING':
-                    treeItem.iconPath = 'fa-circle medium-green';
-                    treeItem.tooltip = 'container is RUNNING';
+                    containerNode.iconPath = 'fa-circle medium-green';
+                    containerNode.tooltip = 'container is RUNNING';
                     break;
                 case 'FAILED':
-                    treeItem.iconPath = 'fa-circle medium-red';
-                    treeItem.tooltip = 'container is FAILED';
+                    containerNode.iconPath = 'fa-circle medium-red';
+                    containerNode.tooltip = 'container is FAILED';
                     break;
                 default:
-                    treeItem.iconPath = 'fa-circle-o';
+                    containerNode.iconPath = 'fa-circle-o';
             }
             if (container.isDev) {
                 hasRuntimeContainers = true;
-                treeItem.tooltip = 'dev ' + treeItem.tooltip;
-                treeItem.parentId = runtimesGroup.id;
+                containerNode.tooltip = 'dev ' + containerNode.tooltip;
+                containerNode.parentId = runtimesGroup.id;
+                containerNode.isExpanded = true;
             } else {
                 hasPlugin = true;
-                treeItem.tooltip = 'che-plugin ' + treeItem.tooltip;
-                treeItem.parentId = pluginsGroup.id;
+                containerNode.tooltip = 'che-plugin ' + containerNode.tooltip;
+                containerNode.parentId = pluginsGroup.id;
+                containerNode.isExpanded = false;
             }
-            this.treeNodeItems.push(treeItem);
+            this.treeNodeItems.push(containerNode);
+
+            // terminal
             this.treeNodeItems.push({
                 id: this.getRandId(),
-                parentId: treeItem.id,
+                parentId: containerNode.id,
                 name: 'New terminal',
                 iconPath: 'fa-terminal medium-yellow',
                 tooltip: `open a new terminal for ${container.name}`,
                 command: { id: 'terminal-in-specific-container:new', arguments: [container.name] }
             });
+
+            // commands
             if (container.commands && container.commands.length) {
+                if (!container.isDev) {
+                    // if there is a command in a plugin container, expand whole plugins containers group
+                    pluginsGroup.isExpanded = true;
+                    // if there is a command defined for this plugin container, show its items by default
+                    containerNode.isExpanded = true;
+                }
                 container.commands.forEach((command: { commandName: string, commandLine: string }) => {
                     this.treeNodeItems.push({
                         id: this.getRandId(),
-                        parentId: treeItem.id,
+                        parentId: containerNode.id,
                         name: command.commandName,
                         tooltip: command.commandLine,
                         iconPath: 'fa-cogs medium-yellow',
-                        command: { id: 'task:run', arguments: [this.getRootPath(), command.commandName] }
+                        command: {
+                            id: CONTAINERS_PLUGIN_RUN_TASK_COMMAND_ID,
+                            arguments: [this.getRootUri().toString(), command.commandName, container.name]
+                        }
                     });
                 });
             }
+
+            // routes
             const serverKeys = container.servers ? Object.keys(container.servers) : [];
             if (serverKeys.length) {
                 serverKeys.forEach((serverName: string) => {
-                    const server = container.servers[serverName];
+                    const server = container.servers![serverName];
                     if (!server) {
                         return;
                     }
                     const treeNodeItem: ITreeNodeItem = {
                         id: this.getRandId(),
-                        parentId: treeItem.id,
+                        parentId: containerNode.id,
                         name: serverName,
                         iconPath: 'fa-info-circle medium-blue',
                         tooltip: server.url ? server.url : 'endpoint'
@@ -133,12 +150,14 @@ export class ContainersTreeDataProvider implements theia.TreeDataProvider<ITreeN
                     this.treeNodeItems.push(treeNodeItem);
                 });
             }
+
+            // environment
             const envKeys = container.env ? Object.keys(container.env) : [];
             if (envKeys.length) {
                 const envsId = this.getRandId();
                 this.treeNodeItems.push({
                     id: envsId,
-                    parentId: treeItem.id,
+                    parentId: containerNode.id,
                     name: 'env',
                     tooltip: 'environment variables',
                     isExpanded: false
@@ -147,26 +166,28 @@ export class ContainersTreeDataProvider implements theia.TreeDataProvider<ITreeN
                     this.treeNodeItems.push({
                         id: this.getRandId(),
                         parentId: envsId,
-                        name: `${envName} : ${container.env[envName]}`,
+                        name: `${envName} : ${container.env![envName]}`,
                         tooltip: `environment variable ${envName}`,
                         iconPath: 'fa-info-circle medium-blue'
                     });
                 });
             }
+
+            // volumes
             const volumesKeys = container.volumes ? Object.keys(container.volumes) : [];
             if (volumesKeys.length) {
                 const volumesId = this.getRandId();
                 this.treeNodeItems.push({
                     id: volumesId,
-                    parentId: treeItem.id,
+                    parentId: containerNode.id,
                     name: 'volumes',
                     tooltip: 'volumes',
                     isExpanded: false
                 });
                 volumesKeys.forEach((volumeName: string) => {
                     const volume: {
-                        [paramRef: string]: string;
-                    } = container.volumes[volumeName];
+                        [paramRef: string]: string | undefined;
+                    } = container.volumes![volumeName];
                     if (!volume) {
                         return;
                     }
@@ -214,12 +235,12 @@ export class ContainersTreeDataProvider implements theia.TreeDataProvider<ITreeN
         this.onDidChangeTreeDataEmitter.fire();
     }
 
-    private getRootPath(): string {
+    private getRootUri(): theia.Uri {
         const workspaceFolders = theia.workspace.workspaceFolders;
         if (!workspaceFolders || workspaceFolders.length < 1) {
-            return '/projects';
+            return theia.Uri.file('/projects');
         }
-        return workspaceFolders[0].uri.path;
+        return workspaceFolders[0].uri;
     }
 
     private getRandId(): string {
@@ -266,4 +287,28 @@ export class ContainersTreeDataProvider implements theia.TreeDataProvider<ITreeN
             return this.treeNodeItems.filter(item => item.parentId === undefined);
         }
     }
+}
+
+export const CONTAINERS_PLUGIN_RUN_TASK_COMMAND_ID = 'containers-plugin-run-task';
+/**
+ * Command handler which is invoked when a user clicks on a task in the Workspace panel.
+ * This is needed if a command doesn't have container to be run in specified.
+ * In such case we run the command in the container under which this command was clicked.
+ */
+export async function containersTreeTaskLauncherCommandHandler(source: string, label: string, containerName: string): Promise<void> {
+    const tasks: theia.Task[] = await theia.tasks.fetchTasks({ type: 'che' });
+    for (const task of tasks) {
+        if (task.name === label && task.source === source) {
+            if (!task.definition.target) {
+                task.definition.target = {};
+            }
+            task.definition.target.containerName = containerName;
+
+            theia.tasks.executeTask(task);
+            return;
+        }
+    }
+
+    // Shouldn't happen. Fallback to default behaviour.
+    theia.commands.executeCommand('task:run', source, label);
 }

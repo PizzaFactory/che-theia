@@ -43,6 +43,10 @@ declare module '@eclipse-che/plugin' {
         export function createWorkspace(devfilePath: string): Promise<void>;
     }
 
+    export namespace github {
+        export function uploadPublicSshKey(publicKey: string): Promise<void>;
+    }
+
     export namespace ssh {
         export function generate(service: string, name: string): Promise<cheApi.ssh.SshPair>;
 
@@ -107,19 +111,16 @@ declare module '@eclipse-che/plugin' {
         export function registerTaskRunner(type: string, runner: TaskRunner): Promise<Disposable>;
         /** Needs to be executed when the task is finished */
         export function fireTaskExited(event: TaskExitedEvent): Promise<void>;
+        /** Add task subschema */
+        export function addTaskSubschema(schema: TaskJSONSchema): Promise<void>;
     }
 
     /** A Task Runner knows how to run a Task of a particular type. */
     export interface TaskRunner {
         /** Runs a task based on the given task configuration. */
-        run(taskConfig: TaskConfiguration, ctx?: string): Promise<Task>;
-    }
-
-    export interface Task {
-        /** Terminates the task. */
-        kill(): Promise<void>;
-        /** Returns runtime information about task. */
-        getRuntimeInfo(): TaskInfo;
+        run(taskConfig: TaskConfiguration, ctx?: string): Promise<TaskInfo>;
+        /** Terminates a task based on the given info. */
+        kill(taskInfo: TaskInfo): Promise<void>;
     }
 
     /** Runtime information about Task. */
@@ -152,9 +153,22 @@ declare module '@eclipse-che/plugin' {
         readonly type: string;
         /** A label that uniquely identifies a task configuration */
         readonly label: string;
-
+        /**
+         * For a provided task, it is the string representation of the URI where the task is supposed to run from. It is `undefined` for global tasks.
+         * For a configured task, it is workspace URI that task belongs to.
+         * This field is not supposed to be used in `tasks.json`
+         */
+        readonly _scope: string | undefined;
         /** Additional task type specific properties. */
         readonly [key: string]: any;
+    }
+
+    export interface TaskJSONSchema {
+        $id?: string;
+        type?: string | string[];
+        required?: string[];
+        properties?: { [key: string]: any };
+        additionalProperties?: boolean
     }
 
     export namespace user {
@@ -169,4 +183,32 @@ declare module '@eclipse-che/plugin' {
     export interface Preferences {
         [key: string]: string;
     }
+
+    export interface Logo {
+        dark: string,
+        light: string
+    }
+
+    export interface Welcome {
+        title: string | undefined;
+        links: string[] | undefined;
+    }
+
+    export interface Link {
+        name: string;
+        url: string;
+    }
+
+    export interface LinkMap {
+        [tag: string]: Link;
+    }
+
+    export namespace product {
+        export let icon: string;
+        export let logo: string | Logo;
+        export let name: string;
+        export let welcome: Welcome | undefined;
+        export let links: LinkMap;
+    }
+
 }
