@@ -14,6 +14,7 @@
  */
 
 import { che as cheApi } from '@eclipse-che/api'
+import * as theia from '@theia/plugin';
 
 declare module '@eclipse-che/plugin' {
 
@@ -45,6 +46,26 @@ declare module '@eclipse-che/plugin' {
 
     export namespace github {
         export function uploadPublicSshKey(publicKey: string): Promise<void>;
+        export function getToken(): Promise<string>;
+    }
+
+    export namespace openshift {
+        export function getToken(): Promise<string>;
+    }
+
+    export namespace oAuth {
+        export function getProviders(): Promise<string[]>;
+        /**
+         * Returns {@code true} if the current user is authenticated for given oAuth provider.
+         * @param provider oAuth provider to Check.
+         */
+        export function isAuthenticated(provider: string): Promise<boolean>;
+        /**
+         * Returns {@code true} if the given oAuth provider is registered.
+         * Use {@link $getProviders} in single-user mode to find the provider in the list.
+         * @param provider oAuth provider to Check.
+         */
+        export function isRegistered(provider: string): Promise<boolean>;
     }
 
     export namespace ssh {
@@ -57,6 +78,27 @@ declare module '@eclipse-che/plugin' {
         export function getAll(service: string): Promise<cheApi.ssh.SshPair[]>;
 
         export function deleteKey(service: string, name: string): Promise<void>;
+    }
+    /**
+     * Optionla parameters for telemetry events
+     */
+    export interface TelemetryListenerParam {
+    }
+
+    /**
+     * Listener for global command invocation
+     */
+    export type TelemetryListener = (commandId: string, param?: TelemetryListenerParam) => void;
+    export interface ClientAddressInfo {
+        ip?: string,
+        port?: string
+        ipFamily?: number
+    }
+    export namespace telemetry {
+        export function event(id: string, ownerId: string, properties: [string, string][]): Promise<void>;
+        /** Fires when a command will starts. */
+        export function addCommandListener(commandId: string, listener: TelemetryListener): Promise<void>;
+        export function getClienAddressInfo(): Promise<ClientAddressInfo>;
     }
 
     /**
@@ -113,6 +155,31 @@ declare module '@eclipse-che/plugin' {
         export function fireTaskExited(event: TaskExitedEvent): Promise<void>;
         /** Add task subschema */
         export function addTaskSubschema(schema: TaskJSONSchema): Promise<void>;
+
+        /** Set task status */
+        export function setTaskStatus(options: TaskStatusOptions): Promise<void>;
+
+        /** Fires when a task starts. */
+        export const onDidStartTask: theia.Event<TaskInfo>;
+        /** Fires when a task is completed. */
+        export const onDidEndTask: theia.Event<TaskExitedEvent>;
+    }
+
+    export interface TerminalWidgetIdentifier {
+        factoryId: string;
+        widgetId?: string;
+        processId?: number;
+    }
+
+    export enum TaskStatus {
+        Success = 'SUCCESS',
+        Error = 'ERROR',
+        Unknown = 'UNKNOWN'
+    }
+
+    export interface TaskStatusOptions {
+        status: TaskStatus;
+        terminalIdentifier: TerminalWidgetIdentifier;
     }
 
     /** A Task Runner knows how to run a Task of a particular type. */
@@ -133,7 +200,7 @@ declare module '@eclipse-che/plugin' {
         readonly ctx?: string,
         /** task config used for launching a task */
         readonly config: TaskConfiguration
-        // tslint:disable-next-line:no-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         readonly [key: string]: any;
     }
 
@@ -144,7 +211,12 @@ declare module '@eclipse-che/plugin' {
         readonly code?: number;
         readonly signal?: string;
 
-        // tslint:disable-next-line:no-any
+        readonly config?: TaskConfiguration;
+
+        readonly terminalId?: number;
+        readonly processId?: number;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         readonly [key: string]: any;
     }
 

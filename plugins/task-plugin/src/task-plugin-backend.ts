@@ -22,11 +22,12 @@ import { CheTaskEventsHandler } from './preview/task-events-handler';
 import { TasksPreviewManager } from './preview/tasks-preview-manager';
 import { ExportConfigurationsManager } from './export/export-configs-manager';
 import { PreviewUrlVariableResolver } from './variable/preview-url-variable-resolver';
+import { TaskStatusHandler } from './task/task-status';
 
 let pluginContext: theia.PluginContext;
 let outputChannel: theia.OutputChannel | undefined;
 
-export async function start(context: theia.PluginContext) {
+export async function start(context: theia.PluginContext): Promise<void> {
     pluginContext = context;
 
     const сheTaskEventsHandler = container.get<CheTaskEventsHandler>(CheTaskEventsHandler);
@@ -52,19 +53,22 @@ export async function start(context: theia.PluginContext) {
     const taskRunnerSubscription = await che.task.registerTaskRunner(CHE_TASK_TYPE, cheTaskRunner);
     getSubscriptions().push(taskRunnerSubscription);
 
+    await che.task.addTaskSubschema(CHE_TASK_SCHEMA);
+
     const exportConfigurationsManager = container.get<ExportConfigurationsManager>(ExportConfigurationsManager);
     exportConfigurationsManager.export();
 
-    che.task.addTaskSubschema(CHE_TASK_SCHEMA);
+    const taskStatusHandler = container.get<TaskStatusHandler>(TaskStatusHandler);
+    taskStatusHandler.init();
 }
 
-export function stop() { }
+export function stop(): void { }
 
 export function getContext(): theia.PluginContext {
     return pluginContext;
 }
 
-// tslint:disable-next-line:no-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getSubscriptions(): { dispose(): any }[] {
     return pluginContext.subscriptions;
 }

@@ -12,11 +12,14 @@ sources:
     - extensions/eclipse-che-theia-about
     - extensions/eclipse-che-theia-preferences-provider-extension
     - extensions/eclipse-che-theia-git-provisioner
+    - extensions/eclipse-che-theia-logging
   plugins:
     - plugins/containers-plugin
-    - plugins/factory-plugin
+    - plugins/workspace-plugin
     - plugins/ports-plugin
     - plugins/task-plugin
     - plugins/welcome-plugin
     - plugins/ssh-plugin
+    - plugins/telemetry-plugin
+    - plugins/github-auth-plugin
   checkoutTo: master
