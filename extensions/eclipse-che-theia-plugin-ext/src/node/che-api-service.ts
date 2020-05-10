@@ -11,7 +11,10 @@ import { CheApiService, Preferences, WorkspaceSettings } from '../common/che-pro
 import { che as cheApi } from '@eclipse-che/api';
 import WorkspaceClient, { IRestAPIConfig, IRemoteAPI } from '@eclipse-che/workspace-client';
 import { injectable } from 'inversify';
+
 import { SS_CRT_PATH } from './che-https';
+
+import { TelemetryClient, Event, EventProperty } from '@eclipse-che/workspace-telemetry-client';
 
 const ENV_WORKSPACE_ID_IS_NOT_SET = 'Environment variable CHE_WORKSPACE_ID is not set';
 
@@ -19,6 +22,7 @@ const ENV_WORKSPACE_ID_IS_NOT_SET = 'Environment variable CHE_WORKSPACE_ID is no
 export class CheApiServiceImpl implements CheApiService {
 
     private workspaceRestAPI: IRemoteAPI | undefined;
+    private telemetryClient: TelemetryClient | undefined = this.getWorkspaceTelemetryClient();
 
     async getCurrentWorkspaceId(): Promise<string> {
         return this.getWorkspaceIdFromEnv();
@@ -26,6 +30,12 @@ export class CheApiServiceImpl implements CheApiService {
 
     async getCheApiURI(): Promise<string | undefined> {
         return process.env.CHE_API_INTERNAL;
+    }
+
+    async getUserId(token?: string): Promise<string> {
+        const cheApiClient = await this.getCheApiClient();
+        const user = await cheApiClient.getCurrentUser(token);
+        return user.id;
     }
 
     async getUserPreferences(filter?: string): Promise<Preferences> {
@@ -108,6 +118,16 @@ export class CheApiServiceImpl implements CheApiService {
         }
     }
 
+    async updateWorkspaceActivity(): Promise<void> {
+        try {
+            const cheApiClient = await this.getCheApiClient();
+            return cheApiClient.updateActivity(this.getWorkspaceIdFromEnv());
+        } catch (e) {
+            console.error(e);
+            throw new Error(e);
+        }
+    }
+
     async stop(): Promise<void> {
         const workspaceId = process.env.CHE_WORKSPACE_ID;
         if (!workspaceId) {
@@ -116,6 +136,47 @@ export class CheApiServiceImpl implements CheApiService {
 
         const cheApiClient = await this.getCheApiClient();
         return await cheApiClient.stop(workspaceId);
+    }
+
+    async getCurrentWorkspacesContainers(): Promise<{ [key: string]: cheApi.workspace.Machine }> {
+        const result: { [key: string]: cheApi.workspace.Machine } = {};
+        try {
+            const workspace = await this.currentWorkspace();
+            const containers = workspace.runtime!.machines;
+            if (containers) {
+                for (const containerName of Object.keys(containers)) {
+                    const container = containers[containerName];
+                    if (container) {
+                        result[containerName] = container;
+                    }
+                }
+            }
+        } catch (e) {
+            throw new Error(`Unable to get workspace containers. Cause: ${e}`);
+        }
+        return result;
+    }
+
+    async findUniqueServerByAttribute(attributeName: string, attributeValue: string): Promise<cheApi.workspace.Server> {
+        const containers = await this.getCurrentWorkspacesContainers();
+        try {
+            if (containers) {
+                for (const containerName of Object.keys(containers)) {
+                    const servers = containers[containerName].servers;
+                    if (servers) {
+                        for (const serverName of Object.keys(servers)) {
+                            const server = servers[serverName];
+                            if (server && server.attributes && server.attributes[attributeName] === attributeValue) {
+                                return server;
+                            }
+                        }
+                    }
+                }
+            }
+            return Promise.reject(`Server by attributes '${attributeName}'='${attributeValue}' was not found.`);
+        } catch (e) {
+            return Promise.reject(`Unable to get workspace servers. Cause: ${e}`);
+        }
     }
 
     async getFactoryById(factoryId: string): Promise<cheApi.factory.Factory> {
@@ -199,6 +260,72 @@ export class CheApiServiceImpl implements CheApiService {
         }
     }
 
+    async submitTelemetryEvent(id: string, ownerId: string, ip: string, agent: string, resolution: string, properties: [string, string][]): Promise<void> {
+        try {
+            const event: Event = {
+                id: id,
+                ip: ip,
+                ownerId: ownerId,
+                agent: agent,
+                resolution: resolution,
+                properties: properties.map((prop: [string, string]) => {
+                    const eventProp: EventProperty = {
+                        id: prop[0],
+                        value: prop[1]
+                    };
+                    return eventProp;
+                })
+            };
+            if (this.telemetryClient) {
+                await this.telemetryClient.event(event);
+            }
+        } catch (e) {
+            console.error(e);
+            throw new Error(e);
+        }
+    }
+
+    async submitTelemetryActivity(): Promise<void> {
+        try {
+            if (this.telemetryClient) {
+                await this.telemetryClient.activity();
+            }
+        } catch (e) {
+            console.error(e);
+            throw new Error(e);
+        }
+    }
+
+    async getOAuthToken(oAuthProvider: string, token?: string): Promise<string | undefined> {
+        const cheApiClient = await this.getCheApiClient();
+        return cheApiClient.getOAuthToken(oAuthProvider, token);
+    }
+
+    async getOAuthProviders(token?: string): Promise<string[]> {
+        const cheApiClient = await this.getCheApiClient();
+        try {
+            return await cheApiClient.getOAuthProviders(token);
+        } catch (e) {
+            return [];
+        }
+    }
+
+    private getWorkspaceTelemetryClient(): TelemetryClient | undefined {
+
+        if (!this.telemetryClient) {
+            const cheWorkspaceTelemetryBackendPortVar = process.env.CHE_WORKSPACE_TELEMETRY_BACKEND_PORT;
+
+            if (!cheWorkspaceTelemetryBackendPortVar) {
+                console.error('Unable to create Che API REST Client: "CHE_WORKSPACE_TELEMETRY_BACKEND_PORT" is not set.');
+                return undefined;
+            }
+
+            this.telemetryClient = new TelemetryClient(undefined, 'http://localhost:' + cheWorkspaceTelemetryBackendPortVar);
+        }
+
+        return this.telemetryClient;
+    }
+
     private async getCheApiClient(): Promise<IRemoteAPI> {
         const cheApiInternalVar = process.env.CHE_API_INTERNAL;
         const cheMachineToken = process.env.CHE_MACHINE_TOKEN;
@@ -217,7 +344,7 @@ export class CheApiServiceImpl implements CheApiService {
             }
             restAPIConfig.ssCrtPath = SS_CRT_PATH;
 
-            this.workspaceRestAPI = await WorkspaceClient.getRestApi(restAPIConfig);
+            this.workspaceRestAPI = WorkspaceClient.getRestApi(restAPIConfig);
         }
 
         return this.workspaceRestAPI;

@@ -34,9 +34,9 @@ export class CheTaskRunner {
     protected readonly machineExecWatcher: MachineExecWatcher;
 
     @postConstruct()
-    protected init() {
+    protected init(): void {
         const disposable = this.machineExecWatcher.onExit(event => {
-            che.task.fireTaskExited({ execId: event.id, code: event.code });
+            che.task.fireTaskExited({ execId: event.id, code: event.code, processId: event.id });
         });
         startPoint.getSubscriptions().push(disposable);
     }
@@ -102,6 +102,6 @@ export class CheTaskRunner {
                 // allow to get process id for other terminals
             }
         }
-        throw new Error(`Failed to terminate Che command: ${taskInfo.config.label}: the corresponging terminal is not found`);
+        throw new Error(`Failed to terminate Che command: ${taskInfo.config.label}: the corresponding terminal is not found`);
     }
 }

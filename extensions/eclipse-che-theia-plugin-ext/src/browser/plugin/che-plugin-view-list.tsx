@@ -59,6 +59,7 @@ interface ListItemProps {
 
 interface ListItemState {
     pluginStatus: PluginStatus;
+    iconFailed: boolean;
 }
 
 export class ChePluginListItem extends React.Component<ListItemProps, ListItemState> {
@@ -69,7 +70,8 @@ export class ChePluginListItem extends React.Component<ListItemProps, ListItemSt
         const status = props.pluginItem.installed ? 'installed' : 'not_installed';
 
         this.state = {
-            pluginStatus: status
+            pluginStatus: status,
+            iconFailed: false
         };
     }
 
@@ -239,11 +241,22 @@ export class ChePluginListItem extends React.Component<ListItemProps, ListItemSt
         </select>;
     }
 
+    protected onIconFailed = async () => {
+        const plugin = this.props.pluginItem;
+        const metadata = plugin.versionList[plugin.version];
+        if (metadata) {
+            this.setState({
+                pluginStatus: this.state.pluginStatus,
+                iconFailed: true
+            });
+        }
+    };
+
     protected renderIcon(metadata: ChePluginMetadata): React.ReactNode {
-        if (metadata.icon) {
+        if (!this.state.iconFailed && metadata.icon) {
             // return the icon
             return <div className='che-plugin-icon'>
-                <img src={metadata.icon}></img>
+                <img src={metadata.icon} onError={this.onIconFailed}></img>
             </div>;
         }
 
@@ -277,7 +290,8 @@ export class ChePluginListItem extends React.Component<ListItemProps, ListItemSt
 
     protected setStatus(status: PluginStatus): void {
         this.setState({
-            pluginStatus: status
+            pluginStatus: status,
+            iconFailed: this.state.iconFailed
         });
     }
 
@@ -291,7 +305,7 @@ export class ChePluginListItem extends React.Component<ListItemProps, ListItemSt
         } else {
             this.setStatus(previousStatus);
         }
-    }
+    };
 
     protected removePlugin = async () => {
         const previousStatus = this.state.pluginStatus;
@@ -303,7 +317,7 @@ export class ChePluginListItem extends React.Component<ListItemProps, ListItemSt
         } else {
             this.setStatus(previousStatus);
         }
-    }
+    };
 
     protected versionChanged = async (event: React.ChangeEvent<HTMLSelectElement>) => {
         const select: HTMLSelectElement = (window.event as Event).target as HTMLSelectElement;
@@ -320,6 +334,6 @@ export class ChePluginListItem extends React.Component<ListItemProps, ListItemSt
         if (plugin.installed) {
             await this.props.pluginManager.changeVersion(this.props.pluginItem, versionBefore);
         }
-    }
+    };
 
 }

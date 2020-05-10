@@ -12,7 +12,8 @@
 
 <div id="badges" align="center">
 
-  [![Build Status](https://ci.codenvycorp.com/buildStatus/icon?job=che-theia-next)](https://ci.codenvycorp.com/job/che-theia-next)
+  [![Build Status](https://ci.centos.org/buildStatus/icon?job=devtools-che-theia-che-build-master)](https://ci.centos.org/view/Devtools/job/devtools-che-theia-che-build-master/)
+  [![Build Status](https://ci.centos.org/buildStatus/icon?job=devtools-che-theia-che-nightly)](https://ci.centos.org/view/Devtools/job/devtools-che-theia-che-nightly/)
   [![mattermost](https://img.shields.io/badge/chat-on%20mattermost-blue.svg)](https://mattermost.eclipse.org/eclipse/channels/eclipse-che-ide2-team)
   [![Open questions](https://img.shields.io/badge/Open-questions-blue.svg?style=flat-curved)](https://github.com/eclipse/che/issues?utf8=%E2%9C%93&q=label%3Aarea%2Ftheia+label%3Akind%2Fquestion+)
   [![Open bugs](https://img.shields.io/badge/Open-bugs-red.svg?style=flat-curved)](https://github.com/eclipse/che/issues?utf8=%E2%9C%93&q=label%3Aarea%2Ftheia+label%3Akind%2Fbug+)
@@ -71,9 +72,9 @@ The che-plugin of this editor is defined in the plugin registry https://github.c
 [dockerfiles/theia](./dockerfiles/theia) folder contains the container image sources of `eclipse/che-theia`:
 - Using a Docker multistage build and [dockerfiles/theia-dev](./dockerfiles/theia-dev) as builder.
 - Cloning [Theia](https://github.com/eclipse-theia/theia)
-- Using `che:theia init` command to decorate Theia with Che-theia plugins and extensions. All plugins and extensions are defined in [che-theia-init-sources.yml](./che-theia-init-sources.yml)
+- Using `che-theia init` command to decorate Theia with Che-theia plugins and extensions. All plugins and extensions are defined in [che-theia-init-sources.yml](./che-theia-init-sources.yml)
 - Using `yarn` to build theia + che-theia extensions + che-theia plugins
-- Assembling everything and using `che:theia production` to make the che-theia webapp.
+- Assembling everything and using `che-theia production` to make the che-theia webapp.
 - Copying the che-theia webapp into the runtime container and creating the Che-theia image.
 
 # Contributing
