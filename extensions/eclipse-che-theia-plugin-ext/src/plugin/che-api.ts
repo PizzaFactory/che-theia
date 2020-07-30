@@ -20,7 +20,7 @@ import { CheGithubImpl } from './che-github';
 import { CheProductImpl } from './che-product';
 import { CheSideCarContentReaderImpl } from './che-sidecar-content-reader';
 import { CheSshImpl } from './che-ssh';
-import { CheTaskImpl, TaskStatus } from './che-task-impl';
+import { CheTaskImpl, TaskStatus, TaskTerminallKind } from './che-task-impl';
 import { CheTelemetryImpl } from './che-telemetry';
 import { CheUserImpl } from './che-user';
 import { CheVariablesImpl } from './che-variables';
@@ -193,6 +193,9 @@ export function createAPIFactory(rpc: RPCProtocol): CheApiFactory {
         };
 
         const user: typeof che.user = {
+            getCurrentUser(): Promise<che.User> {
+                return cheUserImpl.getCurrentUser();
+            },
             getUserPreferences(filter?: string): Promise<che.Preferences> {
                 return cheUserImpl.getUserPreferences(filter);
             },
@@ -238,7 +241,8 @@ export function createAPIFactory(rpc: RPCProtocol): CheApiFactory {
             openshift,
             oAuth,
             telemetry,
-            TaskStatus
+            TaskStatus,
+            TaskTerminallKind
         };
     };
 
