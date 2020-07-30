@@ -8,23 +8,18 @@
 # Contributors:
 #   Red Hat, Inc. - initial API and implementation
 
-FROM quay.io/eclipse/che-custom-nodejs-deasync:10.19.0-latest as custom-nodejs
-
-FROM #{INCLUDE:docker/${BUILD_IMAGE_TARGET}/builder-from.dockerfile}
+#{INCLUDE:docker/${BUILD_IMAGE_TARGET}/builder-from.dockerfile}
 
 WORKDIR /home/theia
 
 # Apply node libs installed globally to the PATH
 ENV PATH=${HOME}/.yarn/bin:${PATH}
-ENV NEXE_FLAGS="--asset ${HOME}/pre-assembly-nodejs-static"
-
-COPY --from=custom-nodejs /pre-assembly-nodejs-static ${HOME}/pre-assembly-nodejs-static
 
 # setup extra stuff
 #{INCLUDE:docker/${BUILD_IMAGE_TARGET}/builder-setup.dockerfile}
-RUN yarn global add ${YARN_FLAGS} nexe@3.3.2
+RUN yarn global add ${YARN_FLAGS} nexe@3.3.7
 RUN nexe -v && \
-    # Build remote binary with node runtime 10.16.0 and che-theia node dependencies. nexe icludes to the binary only
+    # Build remote binary with node runtime 12.x and che-theia node dependencies. nexe icludes to the binary only
     # necessary dependencies.
     nexe node_modules/@eclipse-che/theia-remote/lib/node/plugin-remote.js ${NEXE_FLAGS} -o ${HOME}/plugin-remote-endpoint
 

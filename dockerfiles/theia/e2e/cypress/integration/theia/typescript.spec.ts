@@ -28,7 +28,7 @@ context('TypeScript', () => {
 
 
         // close any workspace
-        cy.theiaCommandPaletteClick('Close Workspace').then(() => {
+        cy.theiaCommandPaletteClick('Close Workspace', '{downarrow}').then(() => {
             const $el = Cypress.$('button.theia-button.main');
             if ($el.length) {
                 cy.get('button.theia-button.main').should('exist').then(() => {
@@ -43,7 +43,7 @@ context('TypeScript', () => {
             // open /tmp
             cy.get('#theia-top-panel').should('exist').then(() => {
 
-                cy.theiaCommandPaletteClick('Open Workspace...', '{downarrow}').then(() => {
+                cy.theiaCommandPaletteClick('Open Workspace...', '{downarrow}{downarrow}').then(() => {
                     cy.get('.theia-LocationList').should('exist');
                     cy.get('.theia-LocationList').select('file:///');
                     cy.wait(2000);
@@ -69,6 +69,8 @@ context('TypeScript', () => {
             // enable the explorer view
             cy.get('body').type('{ctrl}{cmd}{shift}e')
         }).then(() => {
+            // wait for explorer to be opened
+            cy.wait(2000);
             // select new folder
             cy.get('.p-TabBar-content > #shell-tab-explorer-view-container > div.theia-tab-icon-label > div.p-TabBar-tabIcon.navigator-tab-icon').click({ force: true }).then(() => {
                 cy.get('#files').contains(FOLDER_NAME).click({ force: true });
