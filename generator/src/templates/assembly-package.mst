@@ -9,7 +9,8 @@
         "preferences": {
           "editor.autoSave": "on",
           "git.defaultCloneDirectory": "/projects",
-          "application.confirmExit": "always"
+          "application.confirmExit": "always",
+          "files.enableTrash": false
         }
       }
     }
@@ -23,7 +24,6 @@
     "@theia/file-search": "^{{ version }}",
     "@theia/filesystem": "^{{ version }}",
     "@theia/keymaps": "^{{ version }}",
-    "@theia/languages": "^{{ version }}",
     "@theia/markers": "^{{ version }}",
     "@theia/messages": "^{{ version }}",
     "@theia/metrics": "^{{ version }}",

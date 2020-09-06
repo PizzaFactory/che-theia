@@ -18,6 +18,7 @@ import { TERMINAL_SERVER_TYPE } from '../browser/server-definition/remote-termin
 const TYPE: string = 'type';
 const EDITOR_SERVER_TYPE: string = 'ide';
 const SS_CRT_PATH = '/tmp/che/secret/ca.crt';
+const PUBLIC_CRT_PATH = '/public-certs';
 
 @injectable()
 export class CHEWorkspaceServiceImpl implements CHEWorkspaceService {
@@ -104,7 +105,7 @@ export class CHEWorkspaceServiceImpl implements CHEWorkspaceService {
     }
 
     private getWsMasterApiEndPoint(): string | undefined {
-        return process.env['CHE_API_EXTERNAL'];
+        return process.env['CHE_API_INTERNAL'];
     }
 
     private getMachineToken(): string | undefined {
@@ -116,7 +117,8 @@ export class CHEWorkspaceServiceImpl implements CHEWorkspaceService {
             this.api = WorkspaceClient.getRestApi({
                 baseUrl: this.getWsMasterApiEndPoint(),
                 machineToken: this.getMachineToken(),
-                ssCrtPath: SS_CRT_PATH
+                ssCrtPath: SS_CRT_PATH,
+                publicCrtPath: PUBLIC_CRT_PATH
             });
         }
         return this.api;
