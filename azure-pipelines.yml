@@ -25,7 +25,7 @@ jobs:
   steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: '10.16' 
+      versionSpec: '12.18.2'
 
   - script: yarn
     displayName: Run yarn.
