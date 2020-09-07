@@ -31,16 +31,8 @@ jobs:
     displayName: Run yarn.
 
   - script: |
-      cd dockerfiles/theia-dev
       ./build.sh --build-arg:GITHUB_TOKEN=${GITHUB_TOKEN} --organization:$(organization) --tag:$(tag) --prefix:$(prefix)
-    displayName: Building theia-dev
-    env:
-      GITHUB_TOKEN: $(github_token)
-
-  - script: |
-      cd dockerfiles/theia
-      ./build.sh --build-args:GITHUB_TOKEN=${GITHUB_TOKEN} --tag:$(tag) --prefix:$(prefix) --organization:$(organization) --dockerfile:Dockerfile.alpine
-    displayName: Building Theia
+    displayName: Building.
     env:
       GITHUB_TOKEN: $(github_token)
 
