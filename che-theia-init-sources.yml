@@ -1,5 +1,5 @@
 sources:
-- source: https://github.com/eclipse/che-theia
+- source: https://github.com/pizzafactory/che-theia
   extensions:
     - extensions/eclipse-che-theia-plugin-remote
     - extensions/eclipse-che-theia-plugin
@@ -27,4 +27,4 @@ sources:
     - plugins/ssh-plugin
     - plugins/telemetry-plugin
     - plugins/github-auth-plugin
-  checkoutTo: master
+  checkoutTo: azure-pipelines
