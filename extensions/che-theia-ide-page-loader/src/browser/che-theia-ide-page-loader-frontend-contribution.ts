@@ -9,7 +9,7 @@
  **********************************************************************/
 // Original code was contributed by PizzaFactory Project. 
 
-import { inject, injectable } from 'inversify';
+import { injectable } from 'inversify';
 import {
     Command,
     CommandContribution,
@@ -17,8 +17,6 @@ import {
     MenuContribution,
     MenuModelRegistry
 } from '@theia/core/lib/common';
-import { CommonMenus } from '@theia/core/lib/browser';
-import { TheiaDashboardClient } from './theia-ide-page-loader-client';
 
 const RELOAD: Command = {
     id: 'ide-page-loader:reload',
@@ -28,12 +26,9 @@ const RELOAD: Command = {
 @injectable()
 export class CheTheiaIDEPageLoaderFrontendContribution implements CommandContribution, MenuContribution {
 
-    @inject(TheiaDashboardClient)
-    protected readonly dashboardClient: TheiaDashboardClient;
-
     registerCommands(commands: CommandRegistry): void {
         commands.registerCommand(RELOAD, {
-            execute: () => window.location.reload(false);
+            execute: () => window.location.reload(false)
         });
     }
 

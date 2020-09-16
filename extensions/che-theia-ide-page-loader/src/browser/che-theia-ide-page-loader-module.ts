@@ -9,9 +9,8 @@
  **********************************************************************/
 // Original code was contributed by PizzaFactory Project. 
 
-import { TheiaDashboardClient } from './theia-dashboard-client';
 import { CommandContribution, MenuContribution } from '@theia/core/lib/common';
-import { CheTheiaIDEPageLoaderFrontendContribution } from './che-theia-dashboard-frontend-contribution';
+import { CheTheiaIDEPageLoaderFrontendContribution } from './che-theia-ide-page-loader-frontend-contribution';
 
 import { ContainerModule } from 'inversify';
 
