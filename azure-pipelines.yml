@@ -1,60 +1,70 @@
+---
 # Maven
 # Build your Java project and run tests with Apache Maven.
 # Add steps that analyze code, save build artifacts, deploy, and more:
 # https://docs.microsoft.com/azure/devops/pipelines/languages/java
 
 trigger:
-- azure-pipelines
+  - azure-pipelines
 
 jobs:
-- job: Build
-  timeoutInMinutes: 0
+  - job: Build_node
 
-  variables:
-    - group: che-theia
-    - name: organization
-      value: camino
-    - name: prefix
-      value: che
-    - name: tag
-      value: next
+    pool:
+      vmImage: 'Ubuntu-16.04'
 
-  pool:
-    vmImage: 'Ubuntu-16.04'
+    steps:
+      - task: NodeTool@0
+        inputs:
+          versionSpec: '12.18.2'
 
-  steps:
-  - task: NodeTool@0
-    inputs:
-      versionSpec: '12.18.2'
+      - script: yarn
+        displayName: Run yarn.
 
-  - script: yarn
-    displayName: Run yarn.
 
-  - script: |
-      ./build.sh --build-arg:GITHUB_TOKEN=${GITHUB_TOKEN} --organization:$(organization) --tag:$(tag) --prefix:$(prefix)
-    displayName: Building.
-    env:
-      GITHUB_TOKEN: $(github_token)
+  - job: Build_container
+    timeoutInMinutes: 0
 
-  - task: Docker@1
-    displayName: Container registry login
-    inputs:
-      command: login
-      dockerRegistryEndpoint: camino.azurecr.io
-      containerRegistryType: Container Registry
+    variables:
+      - group: che-theia
+      - name: organization
+        value: camino
+      - name: prefix
+        value: che
+      - name: tag
+        value: next
 
-  - script: |
-      docker tag $(organization)/che-theia-dev:$(tag) camino.azurecr.io/$(organization)/che-theia-dev:$(tag)
-      docker tag $(organization)/che-theia:$(tag) camino.azurecr.io/$(organization)/che-theia:$(tag)
-      docker push camino.azurecr.io/$(organization)/che-theia-dev:$(tag)
-      docker push camino.azurecr.io/$(organization)/che-theia:$(tag)
-    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
-    displayName: Pushing
+    pool:
+      vmImage: 'Ubuntu-16.04'
 
-  - script: |
-      docker tag $(organization)/che-theia-dev:$(tag) camino.azurecr.io/$(organization)/che-theia-dev:$(tag)-pr$(System.PullRequest.PullRequestNumber)
-      docker tag $(organization)/che-theia:$(tag) camino.azurecr.io/$(organization)/che-theia:$(tag)-pr$(System.PullRequest.PullRequestNumber)
-      docker push camino.azurecr.io/$(organization)/che-theia-dev:$(tag)-pr$(System.PullRequest.PullRequestNumber)
-      docker push camino.azurecr.io/$(organization)/che-theia:$(tag)-pr$(System.PullRequest.PullRequestNumber)
-    condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'))
-    displayName: Pushing (staging)
+    steps:
+      - script: |
+          ./build.sh --build-arg:GITHUB_TOKEN=${GITHUB_TOKEN} \
+            --organization:$(organization) --tag:$(tag) --prefix:$(prefix) \
+            --root-yarn-opts:--ignore-scripts --dockerfile:Dockerfile.alpine
+        displayName: Building.
+        env:
+          GITHUB_TOKEN: $(github_token)
+
+      - task: Docker@1
+        displayName: Container registry login
+        inputs:
+          command: login
+          dockerRegistryEndpoint: camino.azurecr.io
+          containerRegistryType: Container Registry
+
+      - script: |
+          docker tag $(organization)/che-theia-dev:$(tag) camino.azurecr.io/$(organization)/che-theia-dev:$(tag)
+          docker tag $(organization)/che-theia:$(tag) camino.azurecr.io/$(organization)/che-theia:$(tag)
+          docker push camino.azurecr.io/$(organization)/che-theia-dev:$(tag)
+          docker push camino.azurecr.io/$(organization)/che-theia:$(tag)
+        condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+        displayName: Pushing
+
+      - script: |
+          docker tag $(organization)/che-theia-dev:$(tag) camino.azurecr.io/$(organization)/che-theia-dev:$(tag)-pr$(System.PullRequest.PullRequestNumber)
+          docker tag $(organization)/che-theia:$(tag) camino.azurecr.io/$(organization)/che-theia:$(tag)-pr$(System.PullRequest.PullRequestNumber)
+          docker push camino.azurecr.io/$(organization)/che-theia-dev:$(tag)-pr$(System.PullRequest.PullRequestNumber)
+          docker push camino.azurecr.io/$(organization)/che-theia:$(tag)-pr$(System.PullRequest.PullRequestNumber)
+        condition: and(succeeded(), eq(variables['Build.Reason'], 'PullRequest'))
+        displayName: Pushing (staging)
