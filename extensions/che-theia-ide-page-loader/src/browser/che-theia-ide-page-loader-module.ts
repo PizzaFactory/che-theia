@@ -7,7 +7,7 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  **********************************************************************/
-// Original code was contributed by PizzaFactory Project. 
+// Original code was contributed by PizzaFactory Project.
 
 import { CommandContribution, MenuContribution } from '@theia/core/lib/common';
 import { CheTheiaIDEPageLoaderFrontendContribution } from './che-theia-ide-page-loader-frontend-contribution';
