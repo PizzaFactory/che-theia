@@ -15,10 +15,19 @@
  ********************************************************************************/
 
 import { ContainerModule } from 'inversify';
-import { FrontendApplicationContribution } from '@theia/core/lib/browser';
+import {
+    CHE_API_SERVICE_PATH,
+    CheApiService,
+} from '@eclipse-che/theia-plugin-ext/lib/common/che-protocol';
+import { FrontendApplicationContribution, WebSocketConnectionProvider } from '@theia/core/lib/browser';
 import { SyncProcessTracker } from './sync-process-tracker';
 
 export default new ContainerModule(bind => {
 
     bind(FrontendApplicationContribution).to(SyncProcessTracker).inSingletonScope();
+
+    bind(CheApiService).toDynamicValue(ctx => {
+        const provider = ctx.container.get(WebSocketConnectionProvider);
+        return provider.createProxy<CheApiService>(CHE_API_SERVICE_PATH);
+    }).inSingletonScope();
 });
