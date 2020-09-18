@@ -13,7 +13,7 @@ context('Check Extensions are installed', () => {
     cy.visit('http://localhost:3100');
 
     // maybe it's possible to wait for an element being displayed/hidden
-    cy.wait(10000);
+    cy.wait(30000);
   })
 
 

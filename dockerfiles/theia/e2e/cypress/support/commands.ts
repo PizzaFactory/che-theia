@@ -24,36 +24,49 @@ Cypress.Commands.add('theiaCleanup', (text: string) => {
       }
     })
 
-    cy.get('body').click({force:true});
+    cy.get('body')
+      .click({force:true})
+      .end();
   });
 
 
 Cypress.Commands.add('theiaCommandPaletteClick', (text: string, keyActions?: string) => {
-  if (!keyActions) {
-    keyActions = '';
+  cy.get('body')
+    .wait(3000)
+    .type('{ctrl}{cmd}{shift}p')
+    .wait(3000)
+    .get('.monaco-inputbox>.wrapper>.input')
+    .wait(3000)
+    .type(text)
+    .end();
+  if (keyActions) {
+    cy.wait(3000)
+      .get('.monaco-inputbox>.wrapper>.input')
+      .type(keyActions)
+      .end();
   }
-  cy.get('body').type('{ctrl}{cmd}{shift}p').then(() => {
-    cy.get('.monaco-inputbox>.wrapper>.input').type(text).then(() => {
-          cy.get('.monaco-inputbox>.wrapper>.input').type(keyActions + '{enter}').then(() => {
-        return true;
-      });
-    });
-  });
+  cy.wait(3000)
+    .get('.monaco-inputbox>.wrapper>.input')
+    .type('{enter}')
+    .end();
 });
 
 
 // Grab all name of extensions from extensions panel
 Cypress.Commands.add('theiaCommandPaletteItems', (text: string) => {
-    cy.get('body').type('{ctrl}{cmd}{shift}p').then(() => {
-      cy.get('.monaco-inputbox>.wrapper>.input').type(text).then(() => {
-        cy.get('.quick-open-tree .monaco-tree .monaco-tree-rows').find('.monaco-tree-row').then((items) => {
-            let texts = items.map((i, el) => Cypress.$(el).text())
-            return cy.wrap(texts.get());
-          });
-      }
-      );
+  cy.get('body')
+    .wait(1000)
+    .type('{ctrl}{cmd}{shift}p')
+    .wait(1000)
+    .get('.monaco-inputbox>.wrapper>.input')
+    .type(text)
+    .get('.quick-open-tree .monaco-tree .monaco-tree-rows')
+    .find('.monaco-tree-row')
+    .then((items) => {
+          let texts = items.map((i, el) => Cypress.$(el).text())
+          return cy.wrap(texts.get());
     });
-  });
+});
 
 
 
@@ -80,16 +93,15 @@ Cypress.Commands.add('theiaExtensionsList', () => {
 
 // Grab all name of extensions from extensions panel
 Cypress.Commands.add('theiaExtensionsListFromPanel', () => {
-  cy.get('body').type('{shift}{cmd}X').then(() => {
-    cy.get('#extensions .spinnerContainer').should('exist').then(() => {
-      cy.get('#extensionListContainer', {timeout: 60000}).should('exist').then(() => {
-        cy.get('#extensions').find('.extensionName').then((items) => {
-          let texts = items.map((i, el) => Cypress.$(el).text())
-          return cy.wrap(texts.get());
-        });
-      });
+  cy.get('body')
+    .type('{shift}{cmd}X')
+    .get('#extensions .spinnerContainer').should('exist')
+    .get('#extensionListContainer', {timeout: 60000}).should('exist')
+    .get('#extensions').find('.extensionName')
+    .then((items) => {
+      let texts = items.map((i, el) => Cypress.$(el).text())
+      return cy.wrap(texts.get());
     });
-  });
 });
 
 
