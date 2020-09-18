@@ -32,20 +32,20 @@ Cypress.Commands.add('theiaCleanup', (text: string) => {
 
 Cypress.Commands.add('theiaCommandPaletteClick', (text: string, keyActions?: string) => {
   cy.get('body')
-    .wait(3000)
+    .wait(5000)
     .type('{ctrl}{cmd}{shift}p')
-    .wait(3000)
+    .wait(5000)
     .get('.monaco-inputbox>.wrapper>.input')
-    .wait(3000)
+    .wait(5000)
     .type(text)
     .end();
   if (keyActions) {
-    cy.wait(3000)
+    cy.wait(5000)
       .get('.monaco-inputbox>.wrapper>.input')
       .type(keyActions)
       .end();
   }
-  cy.wait(3000)
+  cy.wait(5000)
     .get('.monaco-inputbox>.wrapper>.input')
     .type('{enter}')
     .end();
@@ -55,9 +55,9 @@ Cypress.Commands.add('theiaCommandPaletteClick', (text: string, keyActions?: str
 // Grab all name of extensions from extensions panel
 Cypress.Commands.add('theiaCommandPaletteItems', (text: string) => {
   cy.get('body')
-    .wait(1000)
+    .wait(5000)
     .type('{ctrl}{cmd}{shift}p')
-    .wait(1000)
+    .wait(5000)
     .get('.monaco-inputbox>.wrapper>.input')
     .type(text)
     .get('.quick-open-tree .monaco-tree .monaco-tree-rows')
