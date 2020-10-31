@@ -21,6 +21,11 @@ declare module '@eclipse-che/plugin' {
     export interface KeyValue {
         [key: string]: string;
     }
+    
+    export interface RestartWorkspaceOptions {
+        prompt?: boolean;
+        promptMessage? : string;
+    }
 
     export namespace workspace {
         export function getCurrentWorkspace(): Promise<cheApi.workspace.Workspace>;
@@ -34,19 +39,29 @@ declare module '@eclipse-che/plugin' {
         export function startTemporary(config: cheApi.workspace.WorkspaceConfig): Promise<any>;
         export function stop(workspaceId: string): Promise<any>;
         export function getSettings(): Promise<KeyValue>;
-    }
-
-    export namespace factory {
-        export function getById(id: string): PromiseLike<cheApi.factory.Factory>;
+        /**
+         * Restart the current workspace
+         * @param restartWorkspaceOptions options to restart
+         * @return true if restart will occur
+         */
+        export function restartWorkspace(restartWorkspaceOptions?: RestartWorkspaceOptions): Promise<boolean>;
     }
 
     export namespace devfile {
         export function createWorkspace(devfilePath: string): Promise<void>;
     }
 
+    export interface GithubUser {
+        login: string,
+        id: number,
+        name: string,
+        email: string
+    }
+
     export namespace github {
         export function uploadPublicSshKey(publicKey: string): Promise<void>;
         export function getToken(): Promise<string>;
+        export function getUser(): Promise<GithubUser>;
     }
 
     export namespace openshift {

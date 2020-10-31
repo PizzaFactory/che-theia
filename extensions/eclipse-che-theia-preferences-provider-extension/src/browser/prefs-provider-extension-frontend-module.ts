@@ -15,11 +15,6 @@
  ********************************************************************************/
 
 import { ContainerModule } from 'inversify';
-import {
-    CHE_API_SERVICE_PATH,
-    CheApiService,
-} from '@eclipse-che/theia-plugin-ext/lib/common/che-protocol';
-import { WebSocketConnectionProvider } from '@theia/core/lib/browser';
 
 import { FrontendApplicationContribution } from '@theia/core/lib/browser';
 import { PreferencesProvider } from './prefs-provider';
@@ -27,9 +22,4 @@ import { PreferencesProvider } from './prefs-provider';
 export default new ContainerModule(bind => {
     bind(PreferencesProvider).toSelf().inSingletonScope();
     bind(FrontendApplicationContribution).toDynamicValue(c => c.container.get(PreferencesProvider));
-
-    bind(CheApiService).toDynamicValue(ctx => {
-        const provider = ctx.container.get(WebSocketConnectionProvider);
-        return provider.createProxy<CheApiService>(CHE_API_SERVICE_PATH);
-    }).inSingletonScope();
 });

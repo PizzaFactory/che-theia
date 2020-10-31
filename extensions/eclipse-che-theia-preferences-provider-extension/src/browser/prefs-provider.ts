@@ -22,14 +22,14 @@ import {
     FrontendApplication
 } from '@theia/core/lib/browser';
 import { WorkspaceService } from '@theia/workspace/lib/browser';
-import { CheApiService } from '@eclipse-che/theia-plugin-ext/lib/common/che-protocol';
+import { WorkspaceService as CheWorkspaceService } from '@eclipse-che/theia-remote-api/lib/common/workspace-service';
 import { che } from '@eclipse-che/api';
 
 @injectable()
 export class PreferencesProvider implements FrontendApplicationContribution {
 
-    @inject(CheApiService)
-    private cheApi: CheApiService;
+    @inject(CheWorkspaceService)
+    private devWorkspaceService: CheWorkspaceService;
 
     constructor(
         @inject(PreferenceServiceImpl) private readonly preferenceService: PreferenceServiceImpl,
@@ -77,20 +77,26 @@ export class PreferencesProvider implements FrontendApplicationContribution {
 
     private async setPluginProperties(props: [string, string][]): Promise<void> {
         await this.workspaceService.roots;
-        const workspace = this.workspaceService.workspace;
-        if (!workspace) {
-            throw new Error('Failed to get Theia workspace.');
-        }
         for (const [key, value] of props) {
-            if (this.preferenceService.has(key, workspace.uri)) {
-                continue;
+
+            try {
+                this.setPreferenceValue(key, JSON.parse(value));
+            } catch (error) {
+                console.warn('could not parse value for preference key %s, using string value: %o', key, error);
+                this.setPreferenceValue(key, value);
             }
-            await this.preferenceService.set(key, value, PreferenceScope.Workspace, workspace.uri);
+        }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    private async setPreferenceValue(key: string, value: any): Promise<void> {
+        if (!this.preferenceService.has(key)) {
+            await this.preferenceService.set(key, value, PreferenceScope.Workspace);
         }
     }
 
     async restorePluginProperties(): Promise<void> {
-        const workspace = await this.cheApi.currentWorkspace();
+        const workspace = await this.devWorkspaceService.currentWorkspace();
         const propsTuples = this.getPluginsProperties(workspace);
         return this.setPluginProperties(propsTuples);
     }
