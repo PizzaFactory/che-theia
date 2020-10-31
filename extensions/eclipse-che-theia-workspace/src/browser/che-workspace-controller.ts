@@ -8,7 +8,6 @@
  * SPDX-License-Identifier: EPL-2.0
  **********************************************************************/
 import { inject, injectable } from 'inversify';
-import { CheApiService } from '@eclipse-che/theia-plugin-ext/lib/common/che-protocol';
 import { che } from '@eclipse-che/api';
 import { AbstractDialog, ConfirmDialog, DefaultUriLabelProviderContribution } from '@theia/core/lib/browser';
 import { Message } from '@theia/core/lib/browser/widgets';
@@ -17,13 +16,15 @@ import { CheWorkspaceCommands } from './che-workspace-contribution';
 import { QuickOpenCheWorkspace } from './che-quick-open-workspace';
 import { FileDialogService, FileDialogTreeFilters, OpenFileDialogProps } from '@theia/filesystem/lib/browser';
 import {
-    WorkspaceService,
+    WorkspaceService as TheiaWorkspaceService,
     WorkspacePreferences
 } from '@theia/workspace/lib/browser';
 import URI from '@theia/core/lib/common/uri';
-import { FileSystem, FileStat } from '@theia/filesystem/lib/common';
 import { THEIA_EXT, VSCODE_EXT } from '@theia/workspace/lib/common';
 import { QuickOpenWorkspace } from '@theia/workspace/lib/browser/quick-open-workspace';
+import { FileService } from '@theia/filesystem/lib/browser/file-service';
+import { FileStat } from '@theia/filesystem/lib/common/files';
+import { WorkspaceService } from '@eclipse-che/theia-remote-api/lib/common/workspace-service';
 
 const YAML = require('js-yaml');
 
@@ -80,12 +81,12 @@ export class StopWorkspaceDialog extends AbstractDialog<boolean | undefined> {
 @injectable()
 export class CheWorkspaceController {
 
-    @inject(CheApiService) protected readonly cheApi: CheApiService;
+    @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService;
     @inject(QuickOpenCheWorkspace) protected readonly quickOpenWorkspace: QuickOpenCheWorkspace;
     @inject(QuickOpenWorkspace) protected readonly quickOpenRecentWorkspaceRoots: QuickOpenWorkspace;
-    @inject(WorkspaceService) protected readonly workspaceService: WorkspaceService;
+    @inject(TheiaWorkspaceService) protected readonly theiaWorkspaceService: TheiaWorkspaceService;
     @inject(FileDialogService) protected readonly fileDialogService: FileDialogService;
-    @inject(FileSystem) protected readonly fileSystem: FileSystem;
+    @inject(FileService) protected readonly fileService: FileService;
     @inject(WorkspacePreferences) protected preferences: WorkspacePreferences;
     @inject(DefaultUriLabelProviderContribution) protected uriLabelProvider: DefaultUriLabelProviderContribution;
 
@@ -112,7 +113,7 @@ export class CheWorkspaceController {
             const result = await dialog.open();
             if (typeof result === 'boolean') {
                 if (result) {
-                    await this.cheApi.stop();
+                    await this.workspaceService.stop();
                 }
                 window.parent.postMessage(`open-workspace:${workspace.id}`, '*');
             }
@@ -125,7 +126,7 @@ export class CheWorkspaceController {
             msg: 'Do you really want to close the workspace?'
         });
         if (await dialog.open()) {
-            await this.cheApi.stop();
+            await this.workspaceService.stop();
 
             window.parent.postMessage('show-workspaces', '*');
         }
@@ -137,7 +138,7 @@ export class CheWorkspaceController {
             msg: 'Do you really want to close the workspace roots?'
         });
         if (await dialog.open()) {
-            await this.workspaceService.close();
+            await this.theiaWorkspaceService.close();
         }
     }
 
@@ -147,13 +148,13 @@ export class CheWorkspaceController {
 
     async openWorkspaceRoots(): Promise<URI | undefined> {
         const props = await this.openWorkspaceOpenFileDialogProps();
-        const [rootStat] = await this.workspaceService.roots;
+        const [rootStat] = await this.theiaWorkspaceService.roots;
         const workspaceFolderOrWorkspaceFileUri = await this.fileDialogService.showOpenDialog(props, rootStat);
         if (workspaceFolderOrWorkspaceFileUri &&
             this.getCurrentWorkspaceUri().toString() !== workspaceFolderOrWorkspaceFileUri.toString()) {
-            const destinationFolder = await this.fileSystem.getFileStat(workspaceFolderOrWorkspaceFileUri.toString());
+            const destinationFolder = await this.fileService.resolve(workspaceFolderOrWorkspaceFileUri);
             if (destinationFolder) {
-                this.workspaceService.open(workspaceFolderOrWorkspaceFileUri);
+                this.theiaWorkspaceService.open(workspaceFolderOrWorkspaceFileUri);
                 return workspaceFolderOrWorkspaceFileUri;
             }
         }
@@ -169,7 +170,7 @@ export class CheWorkspaceController {
     }
 
     private getCurrentWorkspaceUri(): URI {
-        return new URI(this.workspaceService.workspace && this.workspaceService.workspace.uri);
+        return new URI(this.theiaWorkspaceService.workspace && this.theiaWorkspaceService.workspace.resource.toString());
     }
 
     private createOpenWorkspaceOpenFileDialogProps(options: Readonly<{ supportMultiRootWorkspace: boolean }>): OpenFileDialogProps {
@@ -208,7 +209,7 @@ export class CheWorkspaceController {
                 if (displayName && !displayName.endsWith(`.${THEIA_EXT}`) && !displayName.endsWith(`.${VSCODE_EXT}`)) {
                     selected = selected.parent.resolve(`${displayName}.${THEIA_EXT}`);
                 }
-                exist = await this.fileSystem.exists(selected.toString());
+                exist = await this.fileService.exists(selected);
                 if (exist) {
                     overwrite = await this.confirmOverwrite(selected);
                 }
@@ -216,7 +217,7 @@ export class CheWorkspaceController {
         } while (selected && exist && !overwrite);
 
         if (selected) {
-            await this.workspaceService.save(selected);
+            await this.theiaWorkspaceService.save(selected);
         }
     }
 
@@ -239,7 +240,7 @@ export class CheWorkspaceController {
                 inputValue: 'devfile.yaml'
             });
             if (selected) {
-                exist = await this.fileSystem.exists(selected.toString());
+                exist = await this.fileService.exists(selected);
                 if (exist) {
                     overwrite = await this.confirmOverwrite(selected);
                 }
@@ -247,7 +248,7 @@ export class CheWorkspaceController {
         } while (selected && exist && !overwrite);
 
         if (selected) {
-            const workspace = await this.cheApi.currentWorkspace();
+            const workspace = await this.workspaceService.currentWorkspace();
             if (!workspace.devfile) {
                 return;
             }
@@ -258,14 +259,13 @@ export class CheWorkspaceController {
     }
 
     private async writeDevfileFile(uri: URI, devfile: string): Promise<void> {
-        const uriStr = uri.toString();
-        if (!await this.fileSystem.exists(uriStr)) {
-            await this.fileSystem.createFile(uriStr);
+        if (!await this.fileService.exists(uri)) {
+            await this.fileService.createFile(uri);
         }
 
-        const devfileStat = await this.toFileStat(uriStr);
+        const devfileStat = await this.toFileStat(uri.toString());
         if (devfileStat) {
-            await this.fileSystem.setContent(devfileStat, devfile);
+            await this.fileService.write(devfileStat.resource, devfile);
         }
     }
 
@@ -278,8 +278,8 @@ export class CheWorkspaceController {
             if (uriStr.endsWith('/')) {
                 uriStr = uriStr.slice(0, -1);
             }
-            const normalizedUriStr = new URI(uriStr).normalizePath().toString();
-            const fileStat = await this.fileSystem.getFileStat(normalizedUriStr);
+            const normalizedUri = new URI(uriStr).normalizePath();
+            const fileStat = await this.fileService.resolve(normalizedUri);
             if (!fileStat) {
                 return undefined;
             }
