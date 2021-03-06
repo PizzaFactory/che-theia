@@ -48,6 +48,18 @@ export interface ChePluginMetadataInternal {
   };
 }
 
+/**
+ * Workspace Settings :: Plugin Registry URI.
+ * Public URI to load registry resources, e.g. icons.
+ */
+const PLUGIN_REGISTRY_URL = 'cheWorkspacePluginRegistryUrl';
+
+/**
+ * Workspace Settings :: Plugin Registry internal URI.
+ * Is used for cross-container communication and mostly for getting plugins metadata.
+ */
+const PLUGIN_REGISTRY_INTERNAL_URL = 'cheWorkspacePluginRegistryInternalUrl';
+
 @injectable()
 export class ChePluginServiceImpl implements ChePluginService {
   private workspaceService: WorkspaceService;
@@ -76,6 +88,20 @@ export class ChePluginServiceImpl implements ChePluginService {
 
   dispose(): void {}
 
+  ensurePluginsURI(uri: string): string {
+    if (!uri.endsWith('/plugins/')) {
+      if (uri.endsWith('/')) {
+        uri = uri.substring(0, uri.length - 1);
+      }
+
+      if (!uri.endsWith('/plugins')) {
+        uri += '/plugins/';
+      }
+    }
+
+    return uri;
+  }
+
   async getDefaultRegistry(): Promise<ChePluginRegistry> {
     if (this.defaultRegistry) {
       return this.defaultRegistry;
@@ -83,22 +109,18 @@ export class ChePluginServiceImpl implements ChePluginService {
 
     try {
       const workspaceSettings: WorkspaceSettings = await this.workspaceService.getWorkspaceSettings();
-      if (workspaceSettings && workspaceSettings['cheWorkspacePluginRegistryInternalUrl']) {
-        let uri = workspaceSettings['cheWorkspacePluginRegistryInternalUrl'];
-        console.log('[INFO] Plugin registry url is: ' + uri);
+      if (workspaceSettings && workspaceSettings[PLUGIN_REGISTRY_INTERNAL_URL]) {
+        const uri = workspaceSettings[PLUGIN_REGISTRY_INTERNAL_URL];
 
-        if (!uri.endsWith('/plugins/')) {
-          if (uri.endsWith('/')) {
-            uri = uri.substring(0, uri.length - 1);
-          }
-
-          if (!uri.endsWith('/plugins')) {
-            uri += '/plugins/';
-          }
+        let publicUri: string | undefined;
+        if (workspaceSettings[PLUGIN_REGISTRY_URL]) {
+          publicUri = workspaceSettings[PLUGIN_REGISTRY_URL];
         }
+
         this.defaultRegistry = {
           name: 'Eclipse Che plugins',
-          uri: uri,
+          uri: this.ensurePluginsURI(uri),
+          publicUri: publicUri ? this.ensurePluginsURI(publicUri) : undefined,
         };
 
         return this.defaultRegistry;
@@ -249,6 +271,10 @@ export class ChePluginServiceImpl implements ChePluginService {
       try {
         // Get list of ChePluginMetadataInternal from plugin registry
         const registryPlugins = await this.loadPluginList(registry);
+        if (!Array.isArray(registryPlugins)) {
+          await this.client.invalidRegistryFound(registry);
+          continue;
+        }
         availablePlugins += registryPlugins.length;
         await this.client.notifyPluginCacheSizeChanged(availablePlugins);
 
@@ -264,12 +290,16 @@ export class ChePluginServiceImpl implements ChePluginService {
           const pluginYamlURI = this.getPluginYampURI(registry, metadataInternal);
 
           try {
-            const pluginMetadata = await this.loadPluginMetadata(pluginYamlURI, longKeyFormat);
+            const pluginMetadata = await this.loadPluginMetadata(
+              pluginYamlURI,
+              longKeyFormat,
+              registry.publicUri || registry.uri
+            );
             this.cachedPlugins.push(pluginMetadata);
             await this.client.notifyPluginCached(this.cachedPlugins.length);
           } catch (error) {
             console.log('Unable go get plugin metadata from ' + pluginYamlURI);
-            await this.client.invaligPluginFound(pluginYamlURI);
+            await this.client.invalidPluginFound(pluginYamlURI);
           }
         }
       } catch (error) {
@@ -386,7 +416,11 @@ export class ChePluginServiceImpl implements ChePluginService {
     }
   }
 
-  private async loadPluginMetadata(yamlURI: string, longKeyFormat: boolean): Promise<ChePluginMetadata> {
+  private async loadPluginMetadata(
+    yamlURI: string,
+    longKeyFormat: boolean,
+    pluginRegistryURI?: string
+  ): Promise<ChePluginMetadata> {
     try {
       const props: ChePluginMetadata = await this.loadPluginYaml(yamlURI);
 
@@ -401,6 +435,12 @@ export class ChePluginServiceImpl implements ChePluginService {
         }
       }
 
+      let icon = props.icon;
+      if (pluginRegistryURI && props.icon && props.icon.startsWith('/')) {
+        const uri = new URI(pluginRegistryURI);
+        icon = `${uri.scheme}://${uri.authority}${icon}`;
+      }
+
       return {
         publisher: props.publisher,
         name: props.name,
@@ -409,7 +449,7 @@ export class ChePluginServiceImpl implements ChePluginService {
         displayName: props.displayName,
         title: props.title,
         description: props.description,
-        icon: props.icon,
+        icon: icon,
         url: props.url,
         repository: props.repository,
         firstPublicationDate: props.firstPublicationDate,

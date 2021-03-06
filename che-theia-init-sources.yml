@@ -20,8 +20,10 @@ sources:
     - extensions/eclipse-che-theia-workspace
     - extensions/eclipse-che-theia-remote-api
     - extensions/eclipse-che-theia-remote-impl-che-server
+    - extensions/eclipse-che-theia-remote-impl-k8s
   plugins:
     - plugins/containers-plugin
+    - plugins/ext-plugin
     - plugins/workspace-plugin
     - plugins/resource-monitor-plugin
     - plugins/ports-plugin
@@ -30,4 +32,5 @@ sources:
     - plugins/ssh-plugin
     - plugins/telemetry-plugin
     - plugins/github-auth-plugin
-  checkoutTo: azure-pipelines
+    - plugins/recommendations-plugin
+  checkoutTo: prp-update-to-the-upstream
