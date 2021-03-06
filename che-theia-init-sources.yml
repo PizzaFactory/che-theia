@@ -33,4 +33,4 @@ sources:
     - plugins/telemetry-plugin
     - plugins/github-auth-plugin
     - plugins/recommendations-plugin
-  checkoutTo: azure-pipelines
+  checkoutTo: prp-update-to-the-upstream
