@@ -1,7 +1,7 @@
 <br/>
 <div id="che-theia-logo" align="center" style="vertical-align: middle">
 
-<img src="https://raw.githubusercontent.com/eclipse/che-theia/master/extensions/eclipse-che-theia-about/src/browser/style/che-logo-light.svg?sanitize=true" alt="Che Logo" width="200" height="60" />
+<img src="https://raw.githubusercontent.com/eclipse-che/che-theia/master/extensions/eclipse-che-theia-about/src/browser/style/che-logo-light.svg?sanitize=true" alt="Che Logo" width="200" height="60" />
 
 <img src="https://raw.githubusercontent.com/eclipse-theia/theia/master/logo/theia-logo.svg?sanitize=true" alt="Theia Logo" width="150" height="60"/>
 
@@ -12,8 +12,8 @@
 
 <div id="badges" align="center">
 
-  [![Build Status](https://github.com/eclipse/che-theia/workflows/Build%20&%20Publish%20%60next%60/badge.svg)](https://github.com/eclipse/che-theia/actions?query=workflow%3A%22Build+%26+Publish+%60next%60%22)
-  [![Test Coverage](https://img.shields.io/codecov/c/github/eclipse/che-theia)](https://codecov.io/gh/eclipse/che-theia)
+  [![Build Status](https://github.com/eclipse-che/che-theia/workflows/Build%20&%20Publish%20%60next%60/badge.svg)](https://github.com/eclipse-che/che-theia/actions?query=workflow%3A%22Build+%26+Publish+%60next%60%22)
+  [![Test Coverage](https://img.shields.io/codecov/c/github/eclipse-che/che-theia)](https://codecov.io/gh/eclipse-che/che-theia)
   [![mattermost](https://img.shields.io/badge/chat-on%20mattermost-blue.svg)](https://mattermost.eclipse.org/eclipse/channels/eclipse-che)
   [![Open questions](https://img.shields.io/badge/Open-questions-blue.svg?style=flat-curved)](https://github.com/eclipse/che/issues?utf8=%E2%9C%93&q=is%3Aopen+label%3Aarea%2Feditor%2Fche-theia+label%3Akind%2Fquestion+)
   [![Open bugs](https://img.shields.io/badge/Open-bugs-red.svg?style=flat-curved)](https://github.com/eclipse/che/issues?utf8=%E2%9C%93&q=is%3Aopen+label%3Aarea%2Feditor%2Fche-theia+label%3Akind%2Fbug+)
@@ -22,7 +22,7 @@
 
 <div style='margin:0 auto;width:80%;'>
 
-![Che-Theia](https://raw.githubusercontent.com/eclipse/che-theia/master/che-theia-screenshot.png)
+![Che-Theia](https://raw.githubusercontent.com/eclipse-che/che-theia/master/che-theia-screenshot.png)
 
 </div>
 
@@ -80,15 +80,15 @@ The che-plugin of this editor is defined in the plugin registry https://github.c
 # Contributing
 
 ## Contribute to Che-theia
-Contributing to che-theia section is cover in [CONTRIBUTING.md](https://github.com/eclipse/che-theia/blob/master/CONTRIBUTING.md)
+Contributing to che-theia section is cover in [CONTRIBUTING.md](https://github.com/eclipse-che/che-theia/blob/master/CONTRIBUTING.md)
 
 
 ## Build container images
 
 Building images is required only if you make some changes on `Dockerfile`s inside `dockerfiles` folder.
-If it is about testing che-theia extensions or plugins, please refere to [CONTRIBUTING.md](https://github.com/eclipse/che-theia/blob/master/CONTRIBUTING.md).
+If it is about testing che-theia extensions or plugins, please refere to [CONTRIBUTING.md](https://github.com/eclipse-che/che-theia/blob/master/CONTRIBUTING.md).
 
-To build che-theia docker images, please follow [dockerfiles/theia/README.md](https://github.com/eclipse/che-theia/blob/master/dockerfiles/theia/README.md) instructions.
+To build che-theia docker images, please follow [dockerfiles/theia/README.md](https://github.com/eclipse-che/che-theia/blob/master/dockerfiles/theia/README.md) instructions.
 
 
 # License
@@ -98,10 +98,7 @@ To build che-theia docker images, please follow [dockerfiles/theia/README.md](ht
 # Join the community
 
 The Eclipse Che community is globally reachable through public chat rooms, mailing list and weekly calls.
-See https://www.eclipse.org/che/docs/che-7/index.html#joining-the-community
-
-Che-Theia is mainly maintained by the Che IDE2 team a.k.a Selene.
-You are very welcome to join our community chat [here](https://mattermost.eclipse.org/eclipse/channels/eclipse-che-ide2-team) to discuss about improvements, bug fixes and anything else.
+See https://www.eclipse.org/che/docs/che-7/overview/introduction-to-eclipse-che/#_joining_the_community
 
 ## Report issues
 

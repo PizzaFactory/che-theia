@@ -52,6 +52,7 @@ declare module '@eclipse-che/plugin' {
         export interface DevfileComponentStatus {
             name: string;
             isUser: boolean;
+            env?: DevfileComponentEnv[];
             endpoints?: {
                 [endpointName: string]: {
                     url?: string;
@@ -214,6 +215,25 @@ declare module '@eclipse-che/plugin' {
         export function get(): Promise<Devfile>;
         export function getComponentStatuses(): Promise<DevfileComponentStatus[]>;
         export function createWorkspace(devfilePath: string): Promise<void>;
+    }
+
+    export namespace endpoint {
+
+        export interface ExposedEndpoint {
+            attributes?: { [key: string]: string };
+            url?: string;
+            name: string;
+            component: string;
+          }
+
+          export interface ComponentExposedEndpoint {
+            name: string;
+            endpoints: ExposedEndpoint[];
+          }
+
+         export function getEndpoints(): Promise<ComponentExposedEndpoint[]>;
+         export function getEndpointsByName(...names: string[]): Promise<ExposedEndpoint[]>;
+         export function getEndpointsByType(type: string): Promise<ExposedEndpoint[]>;
     }
 
     export interface GithubUser {
@@ -406,8 +426,8 @@ declare module '@eclipse-che/plugin' {
     }
 
     export enum TaskScope {
-        Global = 0,
-        Workspace = 1
+        Global = 1,
+        Workspace = 2
     }
 
     export type TaskConfigurationScope = string | TaskScope.Workspace | TaskScope.Global;
