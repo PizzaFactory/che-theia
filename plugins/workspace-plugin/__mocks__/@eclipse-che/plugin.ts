@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  ***********************************************************************/
 
-describe('no-op', function () {
-  it('no-op', function () {});
-});
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const chePlugin: any = {};
+chePlugin.devfile = {};
+module.exports = chePlugin;

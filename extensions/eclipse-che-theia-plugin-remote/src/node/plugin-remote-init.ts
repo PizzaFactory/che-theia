@@ -19,6 +19,14 @@ import * as ws from 'ws';
 
 import { Container, inject, injectable } from 'inversify';
 import { DeployedPlugin, PluginEntryPoint, PluginInfo, PluginManagerStartParams } from '@theia/plugin-ext';
+import { FileType, Stat } from '@theia/filesystem/lib/common/files';
+import {
+  GetResourceRequest,
+  GetResourceResponse,
+  GetResourceStatRequest,
+  GetResourceStatResponse,
+  InternalMessage,
+} from './internal-protocol';
 import { LogCallback, RemoteHostTraceLogger } from './remote-trace-logger';
 import { MAIN_RPC_CONTEXT, PluginDependencies, PluginDeployer, PluginDeployerEntry } from '@theia/plugin-ext';
 import { OutputChannelRegistryExt, PluginDeployerHandler } from '@theia/plugin-ext/lib/common';
@@ -29,7 +37,7 @@ import { DocumentContainerAware } from './document-container-aware';
 import { Emitter } from '@theia/core/lib/common/event';
 import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
 import { ExecuteCommandContainerAware } from './execute-command-container-aware';
-import { HostedPluginReader } from '@theia/plugin-ext/lib/hosted/node/plugin-reader';
+import { FileSystemContentAware } from './filesystem-content-aware';
 import { ILogger } from '@theia/core/lib/common';
 import { LanguagesContainerAware } from './languages-container-aware';
 import { MAIN_REMOTE_RPC_CONTEXT } from '../common/plugin-remote-rpc';
@@ -274,6 +282,10 @@ to pick-up automatically a free port`)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (webSocketClient.rpc as any).locals.get(MAIN_RPC_CONTEXT.WEBVIEWS_EXT.id)
     );
+    FileSystemContentAware.makeFileSystemContentAware(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (webSocketClient.rpc as any).locals.get(MAIN_RPC_CONTEXT.FILE_SYSTEM_EXT.id)
+    );
 
     let channelName = '';
     if (process.env.CHE_MACHINE_NAME) {
@@ -326,31 +338,15 @@ to pick-up automatically a free port`)
         }
 
         // asked to send plugin resource
-        if (jsonParsed.internal.method === 'getResource') {
-          const pluginId: string = jsonParsed.internal['pluginId'];
-          const resourcePath: string = jsonParsed.internal['path'];
-
-          const pluginRootDirectory = this.pluginReaderExtension.getPluginRootDirectory(pluginId);
-          const resourceFilePath = path.join(pluginRootDirectory!, resourcePath);
-
-          let resourceBase64: string | undefined;
-          if (fs.existsSync(resourceFilePath)) {
-            const resourceBinary = fs.readFileSync(resourceFilePath);
-            resourceBase64 = resourceBinary.toString('base64');
-          }
-
-          client.send({
-            internal: {
-              method: 'getResource',
-              pluginId: pluginId,
-              path: resourcePath,
-              data: resourceBase64,
-            },
-          });
-
+        if (GetResourceRequest.is(jsonParsed.internal)) {
+          client.send(this.handleGetResourceRequest(jsonParsed.internal));
           return;
         }
 
+        if (GetResourceStatRequest.is(jsonParsed.internal)) {
+          client.send(this.handleGetResourceStatRequest(jsonParsed.internal));
+          return;
+        }
         // asked to grab metadata, send them
         if (jsonParsed.internal.metadata && 'request' === jsonParsed.internal.metadata) {
           // apply host on all local metadata
@@ -373,6 +369,55 @@ to pick-up automatically a free port`)
       // send what is inside the message (wrapped message)
       client.fire(jsonParsed);
     });
+  }
+
+  handleGetResourceRequest(msg: GetResourceRequest): InternalMessage {
+    const pluginId: string = msg.pluginId;
+    const resourcePath: string = msg.path;
+    const pluginRootDirectory = this.pluginReaderExtension.getPluginRootDirectory(pluginId);
+    const resourceFilePath = path.join(pluginRootDirectory!, resourcePath);
+
+    let resourceBase64: string | undefined;
+    if (fs.existsSync(resourceFilePath)) {
+      const resourceBinary = fs.readFileSync(resourceFilePath);
+      resourceBase64 = resourceBinary.toString('base64');
+    }
+
+    const response: GetResourceResponse = {
+      requestId: msg.requestId,
+      data: resourceBase64,
+    };
+
+    return {
+      internal: response,
+    };
+  }
+
+  handleGetResourceStatRequest(msg: GetResourceRequest): InternalMessage {
+    const pluginId: string = msg.pluginId;
+    const resourcePath: string = msg.path;
+    const pluginRootDirectory = this.pluginReaderExtension.getPluginRootDirectory(pluginId);
+    const resourceFilePath = path.join(pluginRootDirectory!, resourcePath);
+
+    let stat: Stat | undefined;
+    if (fs.existsSync(resourceFilePath)) {
+      const stats = fs.statSync(resourceFilePath);
+      stat = {
+        type: stats.isFile() ? FileType.File : FileType.Directory,
+        ctime: stats.birthtime.getTime(),
+        mtime: stats.mtime.getTime(),
+        size: stats.size,
+      };
+    }
+
+    const response: GetResourceStatResponse = {
+      requestId: msg.requestId,
+      stat: stat,
+    };
+
+    return {
+      internal: response,
+    };
   }
 }
 
@@ -435,8 +480,8 @@ class PluginDeployerHandlerImpl implements PluginDeployerHandler {
    */
   private readonly deployedBackendPlugins = new Map<string, DeployedPlugin>();
 
-  @inject(HostedPluginReader)
-  private readonly reader: HostedPluginReader;
+  @inject(PluginReaderExtension)
+  private readonly reader: PluginReaderExtension;
 
   private backendPluginsMetadataDeferred = new Deferred<void>();
 

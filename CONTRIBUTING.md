@@ -61,7 +61,7 @@ In this section we are going to start a new workspace to work on che-theia. The 
 The devfile could be started using `chectl`:
 
 ```
-chectl workspace:start -f https://raw.githubusercontent.com/eclipse/che-theia/master/devfiles/che-theia-all.devfile.yaml
+chectl workspace:start -f https://raw.githubusercontent.com/eclipse-che/che-theia/master/devfiles/che-theia-all.devfile.yaml
 ```
 At workspace start, Che will clone Theia and Che-theia.
 
@@ -78,7 +78,7 @@ $ che-theia init --dev
 
 This command will checkout all extensions in `/projects/theia/che` folder and create symbolic link into `/projects/theia/packages` folder.
 
-By default, extensions list is retrieved from https://github.com/eclipse/che-theia/blob/master/che-theia-init-sources.yml
+By default, extensions list is retrieved from https://github.com/eclipse-che/che-theia/blob/master/che-theia-init-sources.yml
 
 ### Step 3: Code che-theia extensions
 At this point you can code on che-theia extensions inside `/projects/theia/che/che-theia/extensions` folder. Extensions changes would be taken into account in the next step.
@@ -123,7 +123,7 @@ $ node /projects/theia/production/src-gen/backend/main.js /tmp/theiadev_projects
 ```
 
 You can then access to your modified Che-theia from the Container view `theia-dev` endpoint
-![Che-Theia-dev-endpoint](https://raw.githubusercontent.com/eclipse/che-theia/assets/theia-dev-endpoint.png)
+![Che-Theia-dev-endpoint](https://raw.githubusercontent.com/eclipse-che/che-theia/assets/theia-dev-endpoint.png)
 
 ### Step 7bis: Run che-theia + plugin in dev mode
 In this section we show how to run the che-theia assembly but in `dev mode`: keeping all the information for debugging.
@@ -134,7 +134,7 @@ You can use the che command `run ... DEV yarn start ... che-theia + workspace-pl
 To start che-theia in `dev-mode` with yarn (not using the production che-theia generated). It would keep things like the ability to source map.
 
 Running dev theia would be located in the che-dev container and `theia-dev-flow` endpoint:
-![Che-Theia-dev-endpoint](https://raw.githubusercontent.com/eclipse/che-theia/assets/theia-dev-flow-endpoint.png)
+![Che-Theia-dev-endpoint](https://raw.githubusercontent.com/eclipse-che/che-theia/assets/theia-dev-flow-endpoint.png)
 
 ### Just want to build the plugin and run with the existing Theia image
 If you do not have any changes on Theia or Che-theia extension, you could just build the plugins with `build ... containers-plugin` or `build ... workspace-plugin`
@@ -143,7 +143,7 @@ and run these plugins with the existing che-theia app:
 
 ## Che-Theia development on che.openshift.io
 
-There is a [devfile](https://github.com/eclipse/che-theia/blob/master/devfiles/hosted-che-dogfooding.devfile.yaml) to develop Che-Theia on [che.openshift.io](https://che.openshift.io)
+There is a [devfile](https://github.com/eclipse-che/che-theia/blob/master/devfiles/hosted-che-dogfooding.devfile.yaml) to develop Che-Theia on [che.openshift.io](https://che.openshift.io)
 
 Projects directory which is a Persistent Volume on [che.openshift.io](https://che.openshift.io) is limited to 1 gigabyte. It's not enough to build Che-Theia.
 The main idea is to use `/tmp/theia` directotry. Amount for this directory is limited to 3 gigabytes, which is enough to build Che-Theia and run.
@@ -153,7 +153,7 @@ In comparing with `/projects`, temporary directory is not persisted and is clear
 
 Use the badge to create a workspace using factory
 
-[![Try it on che.openshift.io](https://img.shields.io/static/v1?label=che&message=openshift.io&color=orange)](https://che.openshift.io/f?url=https://raw.githubusercontent.com/eclipse/che-theia/master/devfiles/hosted-che-dogfooding.devfile.yaml)
+[![Try it on che.openshift.io](https://img.shields.io/static/v1?label=che&message=openshift.io&color=orange)](https://che.openshift.io/f?url=https://raw.githubusercontent.com/eclipse-che/che-theia/master/devfiles/hosted-che-dogfooding.devfile.yaml)
 
 ### Step 1: Initialize Che-Theia in `/tmp/theia` directory
 
@@ -165,7 +165,7 @@ $ mkdir -p /tmp/theia/che/che-theia
 $ rsync -rtv /projects/theia/ /tmp/theia/
 $ rsync -rtv /projects/che-theia/ /tmp/theia/che/che-theia/
 $ cd /tmp/theia
-$ che-theia init --alias https://github.com/eclipse/che-theia=/tmp/theia/che/che-theia
+$ che-theia init --alias https://github.com/eclipse-che/che-theia=/tmp/theia/che/che-theia
 
 ```
 
