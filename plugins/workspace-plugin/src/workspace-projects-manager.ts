@@ -47,7 +47,8 @@ export class WorkspaceProjectsManager {
 
     this.outputChannel.appendLine(`Found devfile ${JSON.stringify(devfile, undefined, 2)}`);
 
-    const cloneCommandList = await this.buildCloneCommands(devfile.projects || []);
+    const projects = devfile.projects || [];
+    const cloneCommandList = await this.buildCloneCommands(projects);
 
     this.outputChannel.appendLine(`Clone commands are ${JSON.stringify(cloneCommandList, undefined, 2)}`);
 
@@ -58,6 +59,15 @@ export class WorkspaceProjectsManager {
     const cloningPromise = this.executeCloneCommands(cloneCommandList, isMultiRoot);
     theia.window.withProgress({ location: { viewId: 'explorer' } }, () => cloningPromise);
     await cloningPromise;
+
+    if (isMultiRoot) {
+      // Backward compatibility for single-root workspaces
+      // we need it to support workspaces which were created before switching multi-root mode to ON by default
+      projects
+        .map(project => this.getProjectPath(project))
+        .filter(projectPath => fs.existsSync(projectPath))
+        .forEach(projectPath => this.workspaceFolderUpdater.addWorkspaceFolder(projectPath));
+    }
 
     await this.startSyncWorkspaceProjects();
   }
@@ -82,21 +92,23 @@ export class WorkspaceProjectsManager {
 
     theia.window.showInformationMessage('Che Workspace: Starting importing projects.');
 
-    const cloningPromises: PromiseLike<string>[] = [];
+    const cloningPromises: Promise<string>[] = [];
     for (const cloneCommand of cloneCommandList) {
       try {
-        const cloningPromise = cloneCommand.execute();
-        cloningPromises.push(cloningPromise);
+        let cloningPromise = cloneCommand.execute();
 
         if (isMultiRoot) {
-          cloningPromise.then(projectPath => this.workspaceFolderUpdater.addWorkspaceFolder(projectPath));
+          cloningPromise = cloningPromise.then(async projectPath => {
+            await this.workspaceFolderUpdater.addWorkspaceFolder(projectPath);
+            return projectPath;
+          });
         }
+        cloningPromises.push(cloningPromise);
       } catch (e) {
         this.outputChannel.appendLine(`Error while cloning: ${e}`);
         // we continue to clone other projects even if a clone process failed for a project
       }
     }
-
     await Promise.all(cloningPromises);
 
     theia.window.showInformationMessage('Che Workspace: Finished importing projects.');
