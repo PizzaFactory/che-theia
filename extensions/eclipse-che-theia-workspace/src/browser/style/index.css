@@ -7,12 +7,15 @@
  *
  * SPDX-License-Identifier: EPL-2.0
  ***********************************************************************/
-import { ContainerModule, interfaces } from 'inversify';
 
-import { GithubResolver } from './github-resolver';
+.theia-navigator-container .label {
+  text-align: center;
+  margin-top: 15px;
+}
 
-const githubModule = new ContainerModule((bind: interfaces.Bind) => {
-  bind(GithubResolver).toSelf().inSingletonScope();
-});
-
-export { githubModule };
+.p-Widget .open-workspace-button {
+  padding: 4px 12px;
+  width: calc(100% - var(--theia-ui-padding) * 4);
+  margin-left: 0;
+  margin-bottom: 5px;
+}
