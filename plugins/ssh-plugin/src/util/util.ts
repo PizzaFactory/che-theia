@@ -22,7 +22,7 @@ export async function askHostName(message?: string): Promise<string | undefined>
 
   return theia.window.showInputBox({
     placeHolder: message ? message : 'Please provide a hostname e.g. github.com',
-    validateInput: (text: string) => {
+    validateInput: async (text: string) => {
       if (!hostNamePattern.test(text)) {
         return 'Invalid hostname';
       }
