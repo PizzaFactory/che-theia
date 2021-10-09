@@ -92,16 +92,42 @@ jobs:
     if: always() && ((needs.build.result == 'failure') || (needs.build.result == 'success'))
     steps:
     - name: Create failure MM message
-      if: ${{ failure() }}
+      if: ${{ needs.build.result == 'failure' }}
       run: |
         echo "{\"text\":\":no_entry_sign: Che Theia ${{ github.event.inputs.version }} release has failed: https://github.com/eclipse-che/che-theia/actions/workflows/release.yml\"}" > mattermost.json
     - name: Create success MM message
+      if: ${{ needs.build.result == 'success' }}
       run: |
-        echo "{\"text\":\":white_check_mark: Che Theia ${{ github.event.inputs.version }} has been released: https://quay.io/eclipse/che-theia-dev:${{ github.event.inputs.version }} https://quay.io/eclipse/che-theia:${{ github.event.inputs.version }} https://quay.io/eclipse/che-theia-endpoint-runtime-binary:${{ github.event.inputs.version }} https://quay.io/eclipse/che-theia-vsix-installer:${{ github.event.inputs.version }}\"}" > mattermost.json
+        echo "{\"text\":\":white_check_mark: Che Theia ${{ github.event.inputs.version }} has been released: https://quay.io/eclipse/che-theia-dev:${{ github.event.inputs.version }} https://quay.io/eclipse/che-theia:${{ github.event.inputs.version }} https://quay.io/eclipse/che-theia-endpoint-runtime-binary:${{ github.event.inputs.version }}\"}" > mattermost.json
     - name: Send MM message
-      if: ${{ success() }} || ${{ failure() }}
       uses: mattermost/action-mattermost-notify@1.1.0
       env:
         MATTERMOST_WEBHOOK_URL: ${{ secrets.MATTERMOST_WEBHOOK_URL }}
         MATTERMOST_CHANNEL: eclipse-che-releases
         MATTERMOST_USERNAME: che-bot
+  # TODO: uncomment this when we're happy that travis is working for PRs
+  # travis-release:
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   continue-on-error: true
+  #   steps:
+  #   - name: Trigger build on Travis CI
+  #     run: |
+  #       body="{
+  #       \"request\":{
+  #       \"config\": {
+  #         \"env\": {
+  #           \"global\": [
+  #             \"TAG=${{ github.event.inputs.version }}\"
+  #            ]
+  #          }
+  #       }
+  #       }}"
+
+  #       curl -s -X POST \
+  #       -H "Content-Type: application/json" \
+  #       -H "Accept: application/json" \
+  #       -H "Travis-API-Version: 3" \
+  #       -H "Authorization: token ${{ secrets.TRAVIS_TOKEN }}" \
+  #       -d "$body" \
+  #       https://api.travis-ci.com/repo/eclipse-che%2Fche-theia/requests
